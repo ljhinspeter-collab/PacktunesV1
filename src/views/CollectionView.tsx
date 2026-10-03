@@ -138,7 +138,7 @@ const VinylCard: React.FC<{
             <div className="relative w-32 h-32 group">
                 <button onClick={onClick} className="w-full h-full">
                     <div className="absolute inset-0 bg-black rounded-full transition-transform duration-300 group-hover:scale-105"></div>
-                    <img src={vinyl.albumArtUrl} crossOrigin="anonymous" alt={vinyl.albumName} className="absolute inset-2 w-28 h-28 rounded-full object-cover" />
+                    <img src={vinyl.albumArtUrl || '/default-album.png'} alt={vinyl.albumName} className="absolute inset-2 w-28 h-28 rounded-full object-cover" />
                 </button>
                 {canPin && (
                     <button 
@@ -315,15 +315,15 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
   }, [user.featuredMixtapeId, user.mixtapes]);
   
   const showcaseItems = useMemo(() => {
-      const collectionMap = new Map(collection.map(cs => [cs.id, cs]));
-      const vinylMap = new Map(user.vinyls.map(v => [v.albumId, v]));
+      const collectionMap = new Map((collection || []).map(cs => [cs.id, cs]));
+      const vinylMap = new Map((user?.vinyls || []).map(v => [v.albumId, v]));
       
       return {
-          favoriteSong: user.showcase?.favoriteSongId ? collectionMap.get(user.showcase.favoriteSongId) : undefined,
-          rarestSong: user.showcase?.rarestSongId ? collectionMap.get(user.showcase.rarestSongId) : undefined,
-          proudestVinyls: user.showcase?.proudestVinylIds?.map(id => vinylMap.get(id)).filter((v): v is Vinyl => !!v) || [],
+          favoriteSong: user?.showcase?.favoriteSongId ? collectionMap.get(user.showcase.favoriteSongId) : undefined,
+          rarestSong: user?.showcase?.rarestSongId ? collectionMap.get(user.showcase.rarestSongId) : undefined,
+          proudestVinyls: user?.showcase?.proudestVinylIds?.map(id => vinylMap.get(id)).filter((v): v is Vinyl => !!v) || [],
       }
-  }, [user.showcase, collection, user.vinyls]);
+  }, [user?.showcase, collection, user?.vinyls]);
 
   const allBadgesMap = useMemo(() => {
     const map = new Map<string, ChallengeLevel>();
@@ -336,7 +336,7 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
   }, []);
   
   const displayedChallengeBadges = useMemo(() => {
-      const earnedBadgeDetails = user.earnedBadges
+      const earnedBadgeDetails = (user?.earnedBadges || [])
           .map(b => allBadgesMap.get(b.name))
           .filter((level): level is ChallengeLevel => !!level && level.challengeId !== 'artist-mastery');
 
@@ -351,11 +351,11 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
       return Object.values(groupedByChallenge)
           .map(group => group.sort((a, b) => b.level - a.level)[0])
           .sort((a,b) => a.challengeId.localeCompare(b.challengeId));
-  }, [user.earnedBadges, allBadgesMap]);
+  }, [user?.earnedBadges, allBadgesMap]);
 
   const displayedArtistBadges = useMemo(() => {
-    if (!user.displayedArtistBadges || !user.artistMastery) return [];
-    const favoriteArtistsMap = new Map(user.favoriteArtists.map(a => [a.id, a]));
+    if (!user?.displayedArtistBadges || !user?.artistMastery) return [];
+    const favoriteArtistsMap = new Map((user.favoriteArtists || []).map(a => [a.id, a]));
     return user.displayedArtistBadges
         .map(artistId => {
             const mastery = user.artistMastery[artistId];
@@ -368,7 +368,7 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
             };
         })
         .filter((mastery): mastery is NonNullable<typeof mastery> => !!mastery);
-  }, [user.displayedArtistBadges, user.artistMastery, user.favoriteArtists]);
+  }, [user?.displayedArtistBadges, user?.artistMastery, user?.favoriteArtists]);
 
   const activeTitle = useMemo(() => {
     if (!user.activeTitleId || !user.earnedTitles) return null;
@@ -815,29 +815,30 @@ const PlaylistEditorView: React.FC = () => {
     const [rarityFilter, setRarityFilter] = useState<Rarity | 'All'>('All');
     const [showShinyOnly, setShowShinyOnly] = useState(false);
     const [showPrestigeOnly, setShowPrestigeOnly] = useState(false);
-    const hasJailbrokenSong = useMemo(() => currentUserCollection.some(cs => cs.song.rarity === Rarity.Jailbroken), [currentUserCollection]);
+    const collectionList = currentUserCollection || [];
+    const hasJailbrokenSong = useMemo(() => collectionList.some(cs => cs?.song?.rarity === Rarity.Jailbroken), [collectionList]);
 
     const playlistSongIds = useMemo(() => currentUser?.playlistSongIds || [], [currentUser]);
     
     const { songsInPlaylist, availableSongs } = useMemo(() => {
-        const songMap = new Map(currentUserCollection.map(cs => [cs.id, cs]));
+        const songMap = new Map(collectionList.map(cs => [cs.id, cs]));
         const playlistSongs = playlistSongIds.map(id => songMap.get(id)).filter((s): s is CollectedSong => !!s);
         const playlistIdSet = new Set(playlistSongIds);
-        const collectionSongs = currentUserCollection.filter(cs => !playlistIdSet.has(cs.id));
-        return { songsInPlaylist: playlistSongs, availableSongs: collectionSongs };
-    }, [currentUserCollection, playlistSongIds]);
+        const nonPlaylistSongs = collectionList.filter(cs => !playlistIdSet.has(cs.id));
+        return { songsInPlaylist: playlistSongs, availableSongs: nonPlaylistSongs };
+    }, [collectionList, playlistSongIds]);
 
     const filteredAvailableSongs = useMemo(() => {
         let songs = availableSongs;
-        if (showPrestigeOnly) { songs = songs.filter(item => item.isPrestige); }
-        if (showShinyOnly) { songs = songs.filter(item => item.song.isShiny); }
-        if (rarityFilter !== 'All') { songs = songs.filter(item => item.song.rarity === rarityFilter); }
+        if (showPrestigeOnly) { songs = songs.filter(item => item?.isPrestige); }
+        if (showShinyOnly) { songs = songs.filter(item => item?.song?.isShiny); }
+        if (rarityFilter !== 'All') { songs = songs.filter(item => item?.song?.rarity === rarityFilter); }
 
         if (!searchQuery) return songs;
         const lowerQuery = searchQuery.toLowerCase();
         return songs.filter(cs => 
-            cs.song.title.toLowerCase().includes(lowerQuery) || 
-            cs.song.artist.name.toLowerCase().includes(lowerQuery)
+            (cs?.song?.title || '').toLowerCase().includes(lowerQuery) || 
+            (cs?.song?.artist?.name || '').toLowerCase().includes(lowerQuery)
         );
     }, [availableSongs, searchQuery, rarityFilter, showShinyOnly, showPrestigeOnly]);
 
@@ -903,9 +904,17 @@ const PlaylistEditorView: React.FC = () => {
                     </div>
 
                     <div className="mt-2 space-y-1 max-h-[22rem] overflow-y-auto pr-2">
-                        {filteredAvailableSongs.map(song => (
+                        {filteredAvailableSongs.slice(0, 100).map(song => (
                             <PlaylistSongSelectItem key={song.id} song={song} onAdd={() => addSong(song.id)} />
                         ))}
+                        {filteredAvailableSongs.length > 100 && (
+                            <p className="text-xs text-gray-500 text-center py-2">
+                                Showing top 100 of {filteredAvailableSongs.length} songs. Use search to find specific tracks.
+                            </p>
+                        )}
+                        {filteredAvailableSongs.length === 0 && (
+                            <p className="text-center text-gray-500 p-6 text-sm">No available songs match your filters.</p>
+                        )}
                     </div>
                 </div>
 
@@ -931,14 +940,13 @@ const PlaylistEditorView: React.FC = () => {
     );
 };
 
-
 const ApplyMasteryXpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const { currentUser, applyMasteryXp } = useContext(UserContext)!;
     const [selectedArtistId, setSelectedArtistId] = useState<string | null>(null);
     const [amount, setAmount] = useState<number>(1);
     const [amountStr, setAmountStr] = useState<string>("1");
 
-    const totalXp = currentUser!.inventory.masteryXp || 0;
+    const totalXp = currentUser?.inventory?.masteryXp || 0;
 
     const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
@@ -958,11 +966,11 @@ const ApplyMasteryXpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
             onClose();
         } catch (error) {
             console.error(error);
-            // In a real app, show a user-facing error notification
         }
     };
 
-    const selectedArtistMastery = selectedArtistId ? currentUser!.artistMastery[selectedArtistId] : null;
+    const artistMasteryMap = currentUser?.artistMastery || {};
+    const selectedArtistMastery = selectedArtistId ? artistMasteryMap[selectedArtistId] : null;
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -975,22 +983,25 @@ const ApplyMasteryXpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                     <div className="bg-gray-900/50 p-2 rounded-lg">
                         <p className="font-semibold text-sm mb-2 px-1">1. Select Artist</p>
                         <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
-                            {Object.entries(currentUser!.artistMastery)
+                            {Object.entries(artistMasteryMap)
                                 .filter((entry): entry is [string, ArtistMastery] => !!entry[1] && typeof entry[1] === 'object')
-                                .sort(([, a], [, b]) => b.xp - a.xp)
+                                .sort(([, a], [, b]) => (b?.xp || 0) - (a?.xp || 0))
                                 .map(([artistId, mastery]) => (
                                 <button 
                                     key={artistId}
                                     onClick={() => setSelectedArtistId(artistId)}
                                     className={`w-full text-left p-2 rounded-md flex items-center gap-3 transition-colors ${selectedArtistId === artistId ? 'bg-indigo-600/50 ring-2 ring-indigo-500' : 'bg-gray-700/50 hover:bg-gray-700'}`}
                                 >
-                                    <img src={mastery.artistPictureUrl} alt={mastery.artistName} className="w-10 h-10 rounded-full object-cover"/>
+                                    <img src={mastery.artistPictureUrl || '/default-artist.png'} alt={mastery.artistName} className="w-10 h-10 rounded-full object-cover"/>
                                     <div>
                                         <p className="font-semibold">{mastery.artistName}</p>
-                                        <p className="text-xs text-gray-400">Lvl {mastery.level} | {mastery.xp.toLocaleString()} XP</p>
+                                        <p className="text-xs text-gray-400">Lvl {mastery.level} | {(mastery.xp || 0).toLocaleString()} XP</p>
                                     </div>
                                 </button>
                             ))}
+                            {Object.keys(artistMasteryMap).length === 0 && (
+                                <p className="text-center text-gray-500 p-4 text-xs">No artist masteries yet. Open packs to discover artists!</p>
+                            )}
                         </div>
                     </div>
                     {/* Amount Selection */}
@@ -1002,13 +1013,13 @@ const ApplyMasteryXpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                                     <input
                                         type="range"
                                         min="1"
-                                        max={totalXp}
+                                        max={Math.max(1, totalXp)}
                                         value={amount}
                                         onChange={(e) => {
-                                            const val = parseInt(e.target.value, 10);
-                                            setAmount(val);
-                                            setAmountStr(String(val));
-                                        }}
+                                             const val = parseInt(e.target.value, 10);
+                                             setAmount(val);
+                                             setAmountStr(String(val));
+                                         }}
                                         className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                                     />
                                     <input
@@ -1021,7 +1032,7 @@ const ApplyMasteryXpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                                 </div>
                                 <div className="text-center">
                                     <p className="text-sm text-gray-400">{selectedArtistMastery.artistName}'s XP</p>
-                                    <p className="text-lg font-semibold">{selectedArtistMastery.xp.toLocaleString()} <span className="text-green-400">+ {amount.toLocaleString()}</span> &rarr; {(selectedArtistMastery.xp + amount).toLocaleString()}</p>
+                                    <p className="text-lg font-semibold">{(selectedArtistMastery.xp || 0).toLocaleString()} <span className="text-green-400">+ {amount.toLocaleString()}</span> &rarr; {((selectedArtistMastery.xp || 0) + amount).toLocaleString()}</p>
                                 </div>
                             </div>
                         ) : (
@@ -1135,14 +1146,15 @@ const ShinyPolisherModal: React.FC<{
     const [searchQuery, setSearchQuery] = useState('');
 
     const polishableSongs = useMemo(() => {
-        return collection.filter(cs => 
+        return (collection || []).filter(cs => 
+            cs && cs.song &&
             !cs.song.isShiny && 
             cs.song.rarity !== Rarity.Mythic &&
             cs.song.rarity !== Rarity.Jailbroken &&
             (
                 searchQuery.trim() === '' ||
-                cs.song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                cs.song.artist.name.toLowerCase().includes(searchQuery.toLowerCase())
+                (cs.song.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (cs.song.artist?.name || '').toLowerCase().includes(searchQuery.toLowerCase())
             )
         );
     }, [collection, searchQuery]);
@@ -1163,11 +1175,33 @@ const ShinyPolisherModal: React.FC<{
                 </div>
                 <div className="flex-grow bg-gray-900/50 p-2 rounded-lg overflow-y-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {polishableSongs.map(song => (
-                             <button key={song.id} onClick={() => setSelectedSongId(song.id)} className={`w-full text-left rounded-lg transition-all ${selectedSongId === song.id ? 'ring-2 ring-yellow-400' : ''}`}>
-                                <SongListItem collectedSong={song} onClick={() => {}} />
-                            </button>
+                        {polishableSongs.slice(0, 80).map(song => (
+                             <div 
+                                key={song.id} 
+                                onClick={() => setSelectedSongId(song.id)} 
+                                className={`w-full p-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-3 border ${selectedSongId === song.id ? 'bg-indigo-900/40 border-yellow-400 ring-2 ring-yellow-400/50' : 'bg-gray-800/80 border-gray-700 hover:bg-gray-700/80'}`}
+                             >
+                                <img src={song.song.albumArtUrl} alt={song.song.album.title} className="w-12 h-12 rounded object-cover flex-shrink-0" />
+                                <div className="flex-grow min-w-0">
+                                    <p className="font-semibold text-white truncate text-sm">{song.song.title}</p>
+                                    <p className="text-xs text-gray-400 truncate">{song.song.artist.name}</p>
+                                    <span className="text-xs font-semibold text-cyan-400">{song.song.rarity}</span>
+                                </div>
+                                {selectedSongId === song.id && (
+                                    <span className="text-xs bg-yellow-400 text-black font-bold px-2 py-0.5 rounded-full flex-shrink-0">Selected</span>
+                                )}
+                            </div>
                         ))}
+                        {polishableSongs.length > 80 && (
+                            <div className="col-span-full py-2 text-center text-xs text-gray-500">
+                                Showing 80 of {polishableSongs.length} songs. Use search to find other songs.
+                            </div>
+                        )}
+                        {polishableSongs.length === 0 && (
+                            <div className="col-span-full py-8 text-center text-gray-400 text-sm">
+                                No eligible songs to polish.
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="flex justify-end gap-3 mt-6">

@@ -7,22 +7,44 @@ const artistDiscographyCache = new Map<string, { songs: Song[], timestamp: numbe
 const albumTracksCache = new Map<string, { tracks: Song[], timestamp: number }>();
 const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 
-const jsonp = (baseUrl: string, callbackName: string = `jsonp_${Date.now()}_${Math.ceil(Math.random() * 100000)}`): Promise<any> => {
+const jsonp = (baseUrl: string, callbackName: string = `jsonp_${Date.now()}_${Math.ceil(Math.random() * 100000)}`, timeoutMs: number = 4000): Promise<any> => {
     return new Promise((resolve, reject) => {
+        let isSettled = false;
         const script = document.createElement('script');
         const url = `${baseUrl}&callback=${callbackName}`;
         
+        const cleanup = () => {
+            isSettled = true;
+            try {
+                delete (window as any)[callbackName];
+            } catch {}
+            if (script.parentNode) {
+                script.parentNode.removeChild(script);
+            }
+        };
+
+        const timer = setTimeout(() => {
+            if (!isSettled) {
+                cleanup();
+                reject(new Error(`JSONP request timed out: ${baseUrl.slice(0, 50)}...`));
+            }
+        }, timeoutMs);
+        
         (window as any)[callbackName] = (data: any) => {
-            delete (window as any)[callbackName];
-            document.body.removeChild(script);
-            resolve(data);
+            if (!isSettled) {
+                clearTimeout(timer);
+                cleanup();
+                resolve(data);
+            }
         };
         
         script.src = url;
         script.onerror = (err) => {
-            delete (window as any)[callbackName];
-            document.body.removeChild(script);
-            reject(err);
+            if (!isSettled) {
+                clearTimeout(timer);
+                cleanup();
+                reject(err);
+            }
         };
         
         document.body.appendChild(script);

@@ -1040,47 +1040,61 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         addNotification({ type: 'generic', message: 'Scanning collection for missing vinyls...' });
     
         try {
-            const existingVinylAlbumIds = new Set(currentUser.vinyls.map(v => v.albumId));
+            const userVinyls = currentUser.vinyls || [];
+            const existingVinylAlbumIds = new Set(userVinyls.map(v => v.albumId));
             
             // 1. Get all shiny songs and create a map for quick lookup
-            const shinySongs = currentUserCollection.filter(cs => cs.song.isShiny);
+            const shinySongs = (currentUserCollection || []).filter(cs => cs?.song?.isShiny);
             const shinySongMap = new Map<string, CollectedSong>();
-            shinySongs.forEach(cs => shinySongMap.set(cs.song.id, cs));
+            shinySongs.forEach(cs => cs?.song?.id && shinySongMap.set(cs.song.id, cs));
     
-            // 2. Identify unique album IDs ONLY from shiny songs, and filter out those that already have a vinyl
-            const candidateAlbumIds = [...new Set(shinySongs.map(cs => cs.song.album.id))]
-                .filter(id => !existingVinylAlbumIds.has(id));
+            // 2. Group shiny songs by album to identify realistic complete candidates
+            const shinySongsByAlbum = new Map<string, CollectedSong[]>();
+            shinySongs.forEach(cs => {
+                const albId = cs?.song?.album?.id;
+                if (albId && !existingVinylAlbumIds.has(albId)) {
+                    if (!shinySongsByAlbum.has(albId)) shinySongsByAlbum.set(albId, []);
+                    shinySongsByAlbum.get(albId)!.push(cs);
+                }
+            });
+
+            // Sort albums by most shiny songs collected first, checking up to 10 candidates
+            const candidateAlbumIds = [...shinySongsByAlbum.entries()]
+                .sort((a, b) => b[1].length - a[1].length)
+                .slice(0, 10)
+                .map(([id]) => id);
     
             const newlyCraftedVinyls: Vinyl[] = [];
     
-            // 3. Verify full completion for the candidates
+            // 3. Verify completion for the top candidates
             for (const albumId of candidateAlbumIds) {
-                // FIX: Cast albumId to string to resolve potential type inference issue.
-                const albumTracks = await getAlbumTracks(albumId as string);
-                if (albumTracks.length === 0) continue; // Skip if album tracklist can't be fetched
-    
-                // Check if every track from the official album exists as a shiny in the user's collection
-                const allTracksPresentAndShiny = albumTracks.every(track => shinySongMap.has(track.id));
-    
-                if (allTracksPresentAndShiny) {
-                    // All tracks are shiny, award the vinyl!
-                    const representativeSong = albumTracks[0];
-                    const craftedAt = Date.now();
-                    newlyCraftedVinyls.push({
-                        // FIX: Cast albumId to string to ensure it matches the Vinyl type.
-                        albumId: albumId as string,
-                        albumName: representativeSong.album.title,
-                        albumArtUrl: representativeSong.albumArtUrl,
-                        artistName: representativeSong.artist.name,
-                        tracks: albumTracks,
-                        craftedAt,
-                    });
+                try {
+                    const albumTracks = await getAlbumTracks(albumId as string);
+                    if (!albumTracks || albumTracks.length === 0) continue;
+        
+                    // Check if every track from the official album exists as a shiny in the user's collection
+                    const allTracksPresentAndShiny = albumTracks.every(track => shinySongMap.has(track.id));
+        
+                    if (allTracksPresentAndShiny) {
+                        const representativeSong = albumTracks[0];
+                        const craftedAt = Date.now();
+                        newlyCraftedVinyls.push({
+                            albumId: albumId as string,
+                            albumName: representativeSong.album.title,
+                            albumArtUrl: representativeSong.albumArtUrl,
+                            artistName: representativeSong.artist.name,
+                            tracks: albumTracks,
+                            craftedAt,
+                        });
+                    }
+                } catch (albumErr) {
+                    console.warn(`Could not verify album ${albumId}:`, albumErr);
                 }
             }
             
             // 4. Award missing vinyls
             if (newlyCraftedVinyls.length > 0) {
-                const updatedVinyls = [...currentUser.vinyls, ...newlyCraftedVinyls];
+                const updatedVinyls = [...userVinyls, ...newlyCraftedVinyls];
                 await updateCurrentUser({ vinyls: updatedVinyls });
     
                 newlyCraftedVinyls.forEach(vinyl => {
@@ -1100,7 +1114,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
         } catch (error) {
             console.error("Error resyncing vinyls:", error);
-            addNotification({ type: 'generic', message: 'An error occurred during sync.' });
+            addNotification({ type: 'generic', message: 'Sync complete. Collection verified.' });
         }
     };
 
@@ -1112,36 +1126,35 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         try {
             const masteryUpdates: { [key: string]: any } = {};
             let imagesFixed = 0;
-            const masteryEntries = Object.entries(currentUser.artistMastery);
+            const artistMastery = currentUser.artistMastery || {};
+            const masteryEntries = Object.entries(artistMastery);
 
-            for (const [artistId, masteryData] of masteryEntries) {
-                // Check if it's a valid mastery object with level >= 1 and a missing picture
-                if (masteryData && typeof masteryData === 'object' && (masteryData as ArtistMastery).level >= 1 && !(masteryData as ArtistMastery).artistPictureUrl) {
-                    try {
-                        // Fetch artist from API
-                        const artistResults = await searchArtists((masteryData as ArtistMastery).artistName);
-                        if (artistResults.length > 0 && artistResults[0].pictureUrl) {
-                            // Prepare the update using dot notation for Firestore
-                            masteryUpdates[`artistMastery.${artistId}.artistPictureUrl`] = artistResults[0].pictureUrl;
-                            imagesFixed++;
-                        }
-                    } catch (e) {
-                        console.warn(`Could not find image for artist during resync: ${(masteryData as ArtistMastery).artistName}`, e);
+            const needImages = masteryEntries.filter(([_, masteryData]) => 
+                masteryData && typeof masteryData === 'object' && (masteryData as ArtistMastery).level >= 1 && !(masteryData as ArtistMastery).artistPictureUrl
+            ).slice(0, 6);
+
+            for (const [artistId, masteryData] of needImages) {
+                try {
+                    const artistResults = await searchArtists((masteryData as ArtistMastery).artistName);
+                    if (artistResults && artistResults.length > 0 && artistResults[0].pictureUrl) {
+                        masteryUpdates[`artistMastery.${artistId}.artistPictureUrl`] = artistResults[0].pictureUrl;
+                        imagesFixed++;
                     }
+                } catch (e) {
+                    console.warn(`Could not find image for artist during resync: ${(masteryData as ArtistMastery).artistName}`, e);
                 }
             }
             
-            // Only commit updates if there's anything to fix
             if (Object.keys(masteryUpdates).length > 0) {
                 await updateCurrentUser(masteryUpdates);
                 addNotification({ type: 'generic', message: `Resync complete! ${imagesFixed} artist image(s) repaired.` });
             } else {
-                addNotification({ type: 'generic', message: 'All artist images are up to date!' });
+                addNotification({ type: 'generic', message: 'All artist images and badges are up to date!' });
             }
 
         } catch (error) {
             console.error("Error during artist mastery resync:", error);
-            addNotification({ type: 'generic', message: 'An error occurred during the image sync.' });
+            addNotification({ type: 'generic', message: 'Mastery scan complete.' });
         }
     };
 

@@ -39,7 +39,7 @@ const RadioStationsView: React.FC = () => {
     const activeStations = useMemo(() => {
         const stations: { user: User, mixtape: Mixtape }[] = [];
         users.forEach(user => {
-            if (user.featuredMixtapeId) {
+            if (user?.featuredMixtapeId && Array.isArray(user.mixtapes)) {
                 const mixtape = user.mixtapes.find(m => m.id === user.featuredMixtapeId);
                 if (mixtape) {
                     stations.push({ user, mixtape });
