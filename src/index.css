@@ -127,6 +127,21 @@ body {
 .shiny-glow {
   box-shadow: 0 0 15px rgba(34, 211, 238, 0.6), 0 0 5px rgba(255, 255, 255, 0.5);
 }
+.shiny-mythic-glow {
+  box-shadow: 0 0 25px rgba(250, 204, 21, 0.85), 0 0 15px rgba(6, 182, 212, 0.85), 0 0 40px rgba(236, 72, 153, 0.65);
+  animation: shiny-mythic-aura 2.5s ease-in-out infinite alternate;
+}
+@keyframes shiny-mythic-aura {
+  0% {
+    box-shadow: 0 0 20px rgba(250, 204, 21, 0.8), 0 0 10px rgba(6, 182, 212, 0.8), 0 0 30px rgba(168, 85, 247, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(6, 182, 212, 0.95), 0 0 20px rgba(250, 204, 21, 0.95), 0 0 50px rgba(236, 72, 153, 0.75);
+  }
+  100% {
+    box-shadow: 0 0 30px rgba(168, 85, 247, 0.9), 0 0 15px rgba(250, 204, 21, 0.9), 0 0 40px rgba(6, 182, 212, 0.8);
+  }
+}
 .prestige-glow {
   box-shadow: 0 0 20px rgba(250, 204, 21, 0.7), 0 0 8px rgba(255, 255, 255, 0.8);
 }
@@ -140,6 +155,10 @@ body {
 .mythic-border {
   border: 2px solid;
   border-image: linear-gradient(45deg, #facc15, #a855f7, #facc15) 1;
+}
+.shiny-mythic-border {
+  border: 3px solid;
+  border-image: linear-gradient(135deg, #facc15, #06b6d4, #ec4899, #a855f7, #facc15) 1;
 }
 .prestige-border {
   border: 2px solid;
@@ -156,6 +175,22 @@ body {
   background-size: 300% 100%;
   animation: shiny-sweep 3s ease-in-out infinite;
   border-radius: 0.5rem;
+}
+.shiny-mythic-overlay-effect {
+  position: absolute;
+  inset: 0;
+  background: 
+    linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.7) 45%, rgba(6, 182, 212, 0.6) 50%, rgba(250, 204, 21, 0.7) 55%, transparent 80%),
+    radial-gradient(circle at 50% 30%, rgba(250, 204, 21, 0.3), transparent 70%);
+  background-size: 250% 100%, 100% 100%;
+  animation: shiny-mythic-sweep 2s linear infinite;
+  border-radius: 0.5rem;
+  pointer-events: none;
+  mix-blend-mode: color-dodge;
+}
+@keyframes shiny-mythic-sweep {
+  0% { background-position: 200% 0, 0 0; }
+  100% { background-position: -100% 0, 0 0; }
 }
 .prestige-overlay-effect {
   position: absolute;

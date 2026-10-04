@@ -511,7 +511,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setIsLoading(false);
     };
 
-    const openNewPack = async () => {
+    const openNewPack = async (packType: string = 'standard') => {
         if (isOpeningPack) return;
         setIsOpeningPack(true);
 
@@ -521,7 +521,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const existingSongIds = new Set(currentUserCollection.map((cs) => cs.song.id));
             const favoriteArtists = currentUser?.favoriteArtists || [];
 
-            const newPack = await generateAndOpenPack(userId, existingSongIds, favoriteArtists, token);
+            const newPack = await generateAndOpenPack(userId, existingSongIds, favoriteArtists, token, packType);
             setRewardPack(newPack);
 
             // Log notable pulls to live global activity feed & register mythics

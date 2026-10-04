@@ -39,8 +39,6 @@ export const CanvasShowcaseCard: React.FC<CanvasCardProps> = ({
   const rarityStyles = getRarityStyles(song.rarity);
 
   const [canvasUrl, setCanvasUrl] = useState<string | null>(null);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -49,33 +47,6 @@ export const CanvasShowcaseCard: React.FC<CanvasCardProps> = ({
     });
     return () => { isMounted = false; };
   }, [song.artist.name, song.title]);
-
-  const toggleAudio = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!song.previewUrl) return;
-
-    if (!audioRef.current) {
-      audioRef.current = new Audio(song.previewUrl);
-      audioRef.current.volume = 0.5;
-      audioRef.current.onended = () => setIsPlayingAudio(false);
-    }
-
-    if (isPlayingAudio) {
-      audioRef.current.pause();
-      setIsPlayingAudio(false);
-    } else {
-      audioRef.current.play().then(() => setIsPlayingAudio(true)).catch(() => {});
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
 
   const getBorderClass = () => {
     if (isJailbroken) return 'jailbroken-glow jailbroken-border border-2';
@@ -110,41 +81,48 @@ export const CanvasShowcaseCard: React.FC<CanvasCardProps> = ({
 
       {/* Overlays */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/30 pointer-events-none" />
-      {isJailbroken && <div className="jailbroken-overlay-effect pointer-events-none"></div>}
-      {isPrestige && <div className="prestige-overlay-effect pointer-events-none"></div>}
-      {isShiny && !isPrestige && <div className="shiny-overlay-effect pointer-events-none"></div>}
 
       {/* Top Header Bar - Minimalist serial & rarity */}
       <div className="relative z-10 p-2 flex items-center justify-between gap-1 pointer-events-none">
         <div className="flex items-center gap-1">
-          {isMythic && (
-            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-yellow-400 text-black shadow-sm">
-              #{String(serialNumber || 1).padStart(3, '0')}
+          {isJailbroken ? (
+            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-black text-white border border-gray-500 shadow-md flex items-center gap-0.5">
+              <span>⚡ 1 of 1</span>
             </span>
-          )}
-          {isShiny && (
-            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-cyan-400 text-black shadow-sm">
-              ✨
+          ) : isMythic && isShiny ? (
+            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-gradient-to-r from-yellow-400 via-amber-300 to-cyan-300 text-black shadow-md flex items-center gap-0.5">
+              <span>💎 #{String(serialNumber || 1).padStart(3, '0')}</span>
             </span>
+          ) : (
+            <>
+              {isMythic && (
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-yellow-400 text-black shadow-sm">
+                  #{String(serialNumber || 1).padStart(3, '0')}
+                </span>
+              )}
+              {isShiny && (
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-cyan-400 text-black shadow-sm">
+                  ✨
+                </span>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Center Audio Preview Button */}
-      {song.previewUrl && (
-        <div className="relative z-10 my-auto flex justify-center items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          <button
-            onClick={toggleAudio}
-            className="p-2.5 rounded-full bg-black/75 text-white hover:bg-yellow-400 hover:text-black hover:scale-110 transition-all shadow-lg backdrop-blur-md"
-          >
-            {isPlayingAudio ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5 pl-0.5" />}
-          </button>
-        </div>
-      )}
-
       {/* Bottom Track Details - Compact single-line / 2-line minimalist */}
       <div className="relative z-10 mt-auto p-2 pt-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col pointer-events-none">
-        <h4 className="font-bold text-xs text-white truncate drop-shadow-md leading-tight">{song.title}</h4>
+        {isJailbroken ? (
+          <h4 className="font-extrabold text-xs text-white truncate drop-shadow-md leading-tight">
+            ⚡ 1 of 1 • {song.title}
+          </h4>
+        ) : isMythic && isShiny ? (
+          <h4 className="font-extrabold text-xs bg-gradient-to-r from-yellow-300 via-cyan-300 to-pink-300 bg-clip-text text-transparent truncate drop-shadow-md leading-tight">
+            💎 {song.title}
+          </h4>
+        ) : (
+          <h4 className="font-bold text-xs text-white truncate drop-shadow-md leading-tight">{song.title}</h4>
+        )}
         <p className="text-[10px] text-gray-300 truncate font-medium drop-shadow leading-tight mt-0.5">{song.artist.name}</p>
       </div>
     </div>
@@ -171,6 +149,46 @@ export const ManageShowcaseModal: React.FC<ManageShowcaseModalProps> = ({
   const [canvasOnlyFilter, setCanvasOnlyFilter] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [canvasStatusMap, setCanvasStatusMap] = useState<Record<string, boolean>>({});
+
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Move slot helper
+  const moveSlot = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= selectedIds.length) return;
+    setSelectedIds((prev) => {
+      const copy = [...prev];
+      const [item] = copy.splice(fromIndex, 1);
+      copy.splice(toIndex, 0, item);
+      return copy;
+    });
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData('text/plain', String(index));
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+    moveSlot(draggedIndex, targetIndex);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
 
   // Only Mythics & Jailbrokens from the collection
   const mythicCollection = useMemo(() => {
@@ -276,10 +294,13 @@ export const ManageShowcaseModal: React.FC<ManageShowcaseModalProps> = ({
         {isPreviewMode ? (
           /* Preview 3x3 Grid View */
           <div className="flex-1 overflow-y-auto py-4">
-            <div className="mb-3 text-center">
+            <div className="mb-3 text-center flex flex-col items-center gap-1">
               <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                 Live 3x3 Showcase Preview ({previewSongs.length}/9 Slots Filled)
               </span>
+              <p className="text-[11px] text-gray-400 font-medium">
+                💡 Drag cards to swap slot positions, or tap ◄ ► controls on hover/touch!
+              </p>
             </div>
 
             {previewSongs.length === 0 ? (
@@ -290,24 +311,69 @@ export const ManageShowcaseModal: React.FC<ManageShowcaseModalProps> = ({
               <div className="grid grid-cols-3 gap-3 sm:gap-4 max-w-2xl mx-auto">
                 {Array.from({ length: MAX_SHOWCASE_SONGS }).map((_, index) => {
                   const song = previewSongs[index];
+                  const isBeingDragged = draggedIndex === index;
+                  const isHoveredTarget = dragOverIndex === index;
+
                   if (song) {
                     return (
-                      <CanvasShowcaseCard
+                      <div
                         key={song.id}
-                        collectedSong={song}
-                        onClick={() => onSongClick(song)}
-                        isCurrentUser={true}
-                        onRemove={() => toggleSelect(song.id)}
-                      />
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragOver={(e) => handleDragOver(e, index)}
+                        onDragLeave={() => setDragOverIndex(null)}
+                        onDrop={(e) => handleDrop(e, index)}
+                        onDragEnd={() => { setDraggedIndex(null); setDragOverIndex(null); }}
+                        className={`relative group/dragSlot transition-all duration-200 rounded-2xl ${
+                          isHoveredTarget ? 'ring-4 ring-yellow-400 scale-[1.03] z-20 shadow-2xl' : ''
+                        } ${isBeingDragged ? 'opacity-30 scale-95' : ''}`}
+                      >
+                        {/* Position Controls Bar */}
+                        <div className="absolute top-2 left-2 right-2 z-30 flex items-center justify-between opacity-0 group-hover/dragSlot:opacity-100 transition-opacity bg-black/85 backdrop-blur-md px-2 py-1 rounded-xl text-xs font-bold text-white border border-yellow-500/50 shadow-xl">
+                          <span className="text-[10px] text-yellow-300 font-extrabold flex items-center gap-1 cursor-grab">
+                            ⋮⋮ Drag
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); moveSlot(index, index - 1); }}
+                              disabled={index === 0}
+                              title="Move Slot Left"
+                              className="p-1 rounded bg-gray-800 hover:bg-yellow-400 hover:text-black disabled:opacity-30 text-[10px]"
+                            >
+                              ◀
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); moveSlot(index, index + 1); }}
+                              disabled={index >= previewSongs.length - 1}
+                              title="Move Slot Right"
+                              className="p-1 rounded bg-gray-800 hover:bg-yellow-400 hover:text-black disabled:opacity-30 text-[10px]"
+                            >
+                              ▶
+                            </button>
+                          </div>
+                        </div>
+
+                        <CanvasShowcaseCard
+                          collectedSong={song}
+                          onClick={() => onSongClick(song)}
+                          isCurrentUser={true}
+                          onRemove={() => toggleSelect(song.id)}
+                        />
+                      </div>
                     );
                   }
                   return (
                     <div
                       key={`empty-${index}`}
-                      className="border-2 border-dashed border-gray-800 rounded-2xl flex flex-col items-center justify-center p-4 text-center aspect-[9/13] bg-gray-900/40"
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDragLeave={() => setDragOverIndex(null)}
+                      onDrop={(e) => handleDrop(e, index)}
+                      className={`border-2 border-dashed border-gray-800 rounded-2xl flex flex-col items-center justify-center p-4 text-center aspect-[9/13] bg-gray-900/40 transition-all ${
+                        dragOverIndex === index ? 'border-yellow-400 bg-yellow-400/10 scale-102' : ''
+                      }`}
                     >
                       <p className="text-[11px] font-semibold text-gray-500">Slot {index + 1}</p>
-                      <span className="text-[10px] text-gray-600 mt-0.5">Empty</span>
+                      <span className="text-[10px] text-gray-600 mt-0.5">Empty Slot</span>
                     </div>
                   );
                 })}
@@ -478,6 +544,8 @@ export const CanvasShowcaseView: React.FC<{
   const isCurrentUser = currentUser?.id === user.id;
 
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+  const [mainDraggedIndex, setMainDraggedIndex] = useState<number | null>(null);
+  const [mainDragOverIndex, setMainDragOverIndex] = useState<number | null>(null);
 
   // Mythic-only filter on the collection
   const mythicCollection = useMemo(() => {
@@ -507,6 +575,42 @@ export const CanvasShowcaseView: React.FC<{
 
   const handleSaveShowcase = (ids: string[]) => {
     updateShowcase({ canvasSongIds: ids.slice(0, MAX_SHOWCASE_SONGS) });
+  };
+
+  const handleMainDragStart = (e: React.DragEvent, index: number) => {
+    if (!isCurrentUser) return;
+    e.dataTransfer.setData('text/plain', String(index));
+    e.dataTransfer.effectAllowed = 'move';
+    setMainDraggedIndex(index);
+  };
+
+  const handleMainDragOver = (e: React.DragEvent, index: number) => {
+    if (!isCurrentUser) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (mainDragOverIndex !== index) {
+      setMainDragOverIndex(index);
+    }
+  };
+
+  const handleMainDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (!isCurrentUser || mainDraggedIndex === null || mainDraggedIndex === targetIndex) {
+      setMainDraggedIndex(null);
+      setMainDragOverIndex(null);
+      return;
+    }
+
+    const currentIds = showcasedSongs.map((s) => s.id);
+    if (mainDraggedIndex >= currentIds.length) return;
+
+    const newIds = [...currentIds];
+    const [movedId] = newIds.splice(mainDraggedIndex, 1);
+    newIds.splice(Math.min(targetIndex, newIds.length), 0, movedId);
+
+    updateShowcase({ canvasSongIds: newIds });
+    setMainDraggedIndex(null);
+    setMainDragOverIndex(null);
   };
 
   return (
@@ -561,16 +665,30 @@ export const CanvasShowcaseView: React.FC<{
         <div className="grid grid-cols-3 gap-3 sm:gap-5">
           {Array.from({ length: MAX_SHOWCASE_SONGS }).map((_, index) => {
             const song = showcasedSongs[index];
+            const isBeingDragged = mainDraggedIndex === index;
+            const isHoveredTarget = mainDragOverIndex === index;
 
             if (song) {
               return (
-                <CanvasShowcaseCard
+                <div
                   key={song.id}
-                  collectedSong={song}
-                  onClick={() => onSongClick(song)}
-                  isCurrentUser={isCurrentUser}
-                  onRemove={isCurrentUser ? () => handleRemoveSong(song.id) : undefined}
-                />
+                  draggable={isCurrentUser}
+                  onDragStart={(e) => handleMainDragStart(e, index)}
+                  onDragOver={(e) => handleMainDragOver(e, index)}
+                  onDragLeave={() => setMainDragOverIndex(null)}
+                  onDrop={(e) => handleMainDrop(e, index)}
+                  onDragEnd={() => { setMainDraggedIndex(null); setMainDragOverIndex(null); }}
+                  className={`relative transition-all duration-200 rounded-2xl ${
+                    isHoveredTarget ? 'ring-4 ring-yellow-400 scale-[1.03] z-20 shadow-2xl' : ''
+                  } ${isBeingDragged ? 'opacity-30 scale-95' : ''}`}
+                >
+                  <CanvasShowcaseCard
+                    collectedSong={song}
+                    onClick={() => onSongClick(song)}
+                    isCurrentUser={isCurrentUser}
+                    onRemove={isCurrentUser ? () => handleRemoveSong(song.id) : undefined}
+                  />
+                </div>
               );
             }
 
@@ -580,7 +698,12 @@ export const CanvasShowcaseView: React.FC<{
                 <div
                   key={`empty-slot-${index}`}
                   onClick={() => setIsManageModalOpen(true)}
-                  className="border-2 border-dashed border-gray-800 hover:border-yellow-500/50 bg-gray-900/30 hover:bg-gray-900/60 rounded-2xl flex flex-col items-center justify-center p-4 text-center cursor-pointer transition-all aspect-[9/13] group"
+                  onDragOver={(e) => handleMainDragOver(e, index)}
+                  onDragLeave={() => setMainDragOverIndex(null)}
+                  onDrop={(e) => handleMainDrop(e, index)}
+                  className={`border-2 border-dashed border-gray-800 hover:border-yellow-500/50 bg-gray-900/30 hover:bg-gray-900/60 rounded-2xl flex flex-col items-center justify-center p-4 text-center cursor-pointer transition-all aspect-[9/13] group ${
+                    mainDragOverIndex === index ? 'border-yellow-400 bg-yellow-400/10 scale-102' : ''
+                  }`}
                 >
                   <div className="p-3 rounded-full bg-gray-800 group-hover:bg-yellow-400 group-hover:text-black text-gray-400 transition-all mb-2">
                     <PlusIcon className="w-5 h-5" />

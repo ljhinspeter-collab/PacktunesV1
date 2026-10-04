@@ -71,6 +71,7 @@ const SongPreview: React.FC<{
     const isMythic = song.rarity === Rarity.Mythic;
     const isJailbroken = song.rarity === Rarity.Jailbroken;
     const isShiny = song.isShiny;
+    const isShinyMythic = isMythic && isShiny;
     const rarityStyles = getRarityStyles(song.rarity);
     const [isCreatingTrade, setIsCreatingTrade] = useState(false);
     
@@ -83,6 +84,7 @@ const SongPreview: React.FC<{
     const getRarityTagColor = () => {
         if (isJailbroken) return 'jailbroken-border bg-black text-white';
         if (isPrestige) return 'prestige-border bg-gradient-to-r from-yellow-300 to-white text-black';
+        if (isShinyMythic) return 'bg-gradient-to-r from-yellow-400 via-cyan-400 to-pink-500 text-black border border-yellow-200 animate-pulse font-black shadow-lg';
         if (isShiny) return 'bg-gradient-to-r from-cyan-400 to-blue-500 text-white animate-pulse';
         switch (song.rarity) {
             case Rarity.Mythic: return 'bg-yellow-400 text-black';
@@ -95,9 +97,10 @@ const SongPreview: React.FC<{
     const getImageBorder = () => {
          if (isJailbroken) return 'p-1 jailbroken-glow jailbroken-border';
          if (isPrestige) return 'p-1 prestige-glow prestige-border';
-         if (isShiny) return 'p-1 mythic-glow mythic-border';
+         if (isShinyMythic) return 'p-1 shiny-mythic-glow shiny-mythic-border';
+         if (isShiny) return 'p-1 shiny-glow border-2 border-cyan-400';
          switch (song.rarity) {
-            case Rarity.Mythic: return 'mythic-border p-1';
+            case Rarity.Mythic: return 'mythic-border mythic-glow p-1';
             case Rarity.Rare: return 'border-4 border-blue-400';
             case Rarity.Uncommon: return 'border-4 border-green-400';
             default: return 'border-4 border-gray-400/50';
@@ -212,9 +215,19 @@ const SongPreview: React.FC<{
                                     className={`w-full h-full object-cover rounded-md`}
                                 />
                             )}
-                            {isJailbroken && <div className="jailbroken-overlay-effect !rounded-md"></div>}
-                            {isPrestige && <div className="prestige-overlay-effect !rounded-md"></div>}
-                            {isShiny && !isPrestige && <div className="shiny-overlay-effect !rounded-md"></div>}
+                            {!isCanvasActive && (
+                                <>
+                                    {isShinyMythic ? (
+                                        <div className="shiny-mythic-overlay-effect !rounded-md"></div>
+                                    ) : (
+                                        <>
+                                            {isJailbroken && <div className="jailbroken-overlay-effect !rounded-md"></div>}
+                                            {isPrestige && <div className="prestige-overlay-effect !rounded-md"></div>}
+                                            {isShiny && !isPrestige && <div className="shiny-overlay-effect !rounded-md"></div>}
+                                        </>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </div>
                     
@@ -224,7 +237,16 @@ const SongPreview: React.FC<{
                         <p className="text-xs text-gray-400 mt-1 truncate">{song.album.title}</p>
                     </div>
 
-                    {isJailbroken ? (
+                    {isShinyMythic ? (
+                        <div className="mt-2 text-center p-3 shiny-mythic-border bg-gradient-to-r from-amber-500/30 via-cyan-500/20 to-pink-500/30 rounded-xl shadow-xl animate-pulse">
+                            <p className="font-black text-sm text-yellow-300 tracking-wider flex items-center justify-center gap-1.5 uppercase drop-shadow">
+                                ✨💎 ULTRA-RARE SHINY MYTHIC
+                            </p>
+                            <p className="text-xs text-cyan-200 mt-1 font-bold">
+                                PRISMATIC HOLOGRAPHIC FOIL • SERIAL #{String(serialNumber || 1).padStart(3, '0')}
+                            </p>
+                        </div>
+                    ) : isJailbroken ? (
                         <div className="mt-2 text-center p-2 jailbroken-border bg-black/30 rounded-lg">
                             <p className="font-bold text-lg text-white tracking-widest">JAILBROKEN</p>
                             <p className="text-xs text-gray-300">ONE OF ONE</p>

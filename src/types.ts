@@ -59,6 +59,8 @@ export interface CollectedSong {
   isPrestige: boolean;
   collectedAt: number;
   prestigedAt?: number;
+  isThemedGenrePack?: boolean;
+  isExcludedFromClanWar?: boolean;
 }
 
 export interface Badge {
@@ -498,7 +500,7 @@ export interface UserContextType {
     recalculateCollectionMastery: () => Promise<void>;
 
     // Pack Opening
-    openNewPack: () => Promise<void>;
+    openNewPack: (packType?: string) => Promise<void>;
     isOpeningPack: boolean;
     rewardPack: CollectedSong[] | null;
     // FIX: Use imported types instead of React namespace.
