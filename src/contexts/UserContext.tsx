@@ -338,13 +338,23 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, [currentUser, addNotification]);
     
      useEffect(() => {
-        if (currentUser && currentUserCollection.length > 0 && !mythicFixRun.current) {
-            mythicFixRun.current = true;
-            dataService.fixNullMythicSerials(currentUser, currentUserCollection)
-                .then(() => console.log("Mythic serial number scan complete."))
-                .catch(err => console.error("Mythic serial scan failed:", err));
+        if (currentUser && currentUserCollection.length > 0) {
+            const hasMythics = currentUserCollection.some(cs => cs.song.rarity === Rarity.Mythic);
+            if (hasMythics) {
+                dataService.fixNullMythicSerials(currentUser, currentUserCollection)
+                    .then((updated) => {
+                        if (updated && updated.length > 0) {
+                            // Check if serial numbers actually changed before setting state to avoid re-renders
+                            const changed = updated.some((item, idx) => item.serialNumber !== currentUserCollection[idx]?.serialNumber);
+                            if (changed) {
+                                setCurrentUserCollection(updated);
+                            }
+                        }
+                    })
+                    .catch(err => console.error("Mythic serial scan failed:", err));
+            }
         }
-    }, [currentUser, currentUserCollection]);
+    }, [currentUser?.id, currentUserCollection]);
 
     useEffect(() => {
         let unsubscribe: Unsubscribe | null = null;
@@ -432,14 +442,12 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, [currentUser, addNotification]);
 
     const findMythicOwnerName = useCallback(
-        async (songId: string, serialNumber: number) => {
-            // 1. First check recorded owner in Firestore firstMythicOwners
-            const ownerName = await dataService.findMythicOwnerName(songId, serialNumber);
-            if (ownerName) return ownerName;
-
-            // 2. Check if current user owns this Mythic in their collection
-            const userMythic = currentUserCollection.find(cs => cs.song.id === songId && cs.song.rarity === Rarity.Mythic);
-            if (userMythic && currentUser) {
+        async (songId: string, _serialNumber: number = 1) => {
+            // 1. Check if current user owns Serial #1 specifically
+            const userSerial1 = currentUserCollection.find(
+                cs => cs.song.id === songId && cs.song.rarity === Rarity.Mythic && cs.serialNumber === 1
+            );
+            if (userSerial1 && currentUser) {
                 try {
                     const ownerDocRef = doc(db, 'firstMythicOwners', songId);
                     await setDoc(ownerDocRef, { ownerId: currentUser.id, ownerName: currentUser.name }, { merge: true });
@@ -447,20 +455,13 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 return currentUser.name;
             }
 
-            // 3. Check other users
-            for (const u of users) {
-                if (u.showcase?.favoriteSongId === songId || u.showcase?.rarestSongId === songId) {
-                    try {
-                        const ownerDocRef = doc(db, 'firstMythicOwners', songId);
-                        await setDoc(ownerDocRef, { ownerId: u.id, ownerName: u.name }, { merge: true });
-                    } catch {}
-                    return u.name;
-                }
-            }
+            // 2. Scan database across all users for Serial #1 owner
+            const ownerName = await dataService.findMythicOwnerName(songId, 1);
+            if (ownerName) return ownerName;
 
-            return null;
+            return 'Not Pulled';
         },
-        [currentUser, currentUserCollection, users]
+        [currentUser, currentUserCollection]
     );
     
     const signIn = (email: string, password?: string) => {
@@ -707,13 +708,59 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const setFavoriteArtists = (artists: Artist[]) => updateCurrentUser({ favoriteArtists: artists });
     const addFriend = (friendId: string) => updateCurrentUser({ friendIds: arrayUnion(friendId) });
     const removeFriend = (friendId: string) => updateCurrentUser({ friendIds: arrayRemove(friendId) });
-    const updateShowcase = (data: Partial<Showcase>) => {
-        const updateData: {[key: string]: any} = {};
-        if (data.favoriteSongId !== undefined) updateData['showcase.favoriteSongId'] = data.favoriteSongId || deleteField();
-        if (data.rarestSongId !== undefined) updateData['showcase.rarestSongId'] = data.rarestSongId || deleteField();
-        if (data.proudestVinylIds !== undefined) updateData['showcase.proudestVinylIds'] = data.proudestVinylIds;
-        if (data.canvasSongIds !== undefined) updateData['showcase.canvasSongIds'] = data.canvasSongIds;
-        return dataService.updateUser(currentUser!.id, updateData);
+    const updateShowcase = async (data: Partial<Showcase>) => {
+        if (!currentUser) return;
+
+        // Clean up arrays to ensure Firestore never receives undefined/null values
+        const cleanedRows = data.rows ? data.rows.map(r => ({
+            isWide: !!r.isWide,
+            songIds: (r.songIds || []).filter(id => typeof id === 'string' && id.length > 0)
+        })) : undefined;
+
+        const rowsJsonString = cleanedRows ? JSON.stringify(cleanedRows) : data.rowsJson;
+
+        const cleanedCanvasSongIds = data.canvasSongIds ? data.canvasSongIds.filter(id => typeof id === 'string' && id.length > 0) : undefined;
+        const cleanedWideSongIds = data.wideSongIds ? data.wideSongIds.filter(id => typeof id === 'string' && id.length > 0) : undefined;
+        const cleanedProudestVinylIds = data.proudestVinylIds ? data.proudestVinylIds.filter(id => typeof id === 'string' && id.length > 0) : undefined;
+
+        const updatedShowcase: Showcase = {
+            ...(currentUser.showcase || {}),
+            ...(data.favoriteSongId !== undefined ? { favoriteSongId: data.favoriteSongId } : {}),
+            ...(data.rarestSongId !== undefined ? { rarestSongId: data.rarestSongId } : {}),
+            ...(cleanedProudestVinylIds !== undefined ? { proudestVinylIds: cleanedProudestVinylIds } : {}),
+            ...(cleanedCanvasSongIds !== undefined ? { canvasSongIds: cleanedCanvasSongIds } : {}),
+            ...(cleanedWideSongIds !== undefined ? { wideSongIds: cleanedWideSongIds } : {}),
+            ...(cleanedRows !== undefined ? { rows: cleanedRows } : {}),
+            ...(rowsJsonString !== undefined ? { rowsJson: rowsJsonString } : {}),
+        };
+
+        // Optimistically update local currentUser state immediately so UI reflects changes with 0 lag
+        setCurrentUser((prev: User | null) => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                showcase: updatedShowcase,
+            };
+        });
+
+        // Safe Firestore update (using rowsJson string and deleting legacy array fields to clear index explosion)
+        try {
+            const updateData: { [key: string]: any } = {};
+            if (data.favoriteSongId !== undefined) updateData['showcase.favoriteSongId'] = data.favoriteSongId || deleteField();
+            if (data.rarestSongId !== undefined) updateData['showcase.rarestSongId'] = data.rarestSongId || deleteField();
+            if (cleanedProudestVinylIds !== undefined) updateData['showcase.proudestVinylIds'] = cleanedProudestVinylIds;
+            if (rowsJsonString !== undefined) {
+                updateData['showcase.rowsJson'] = rowsJsonString;
+            }
+            // Delete legacy heavy array fields to free up Firestore document index quota
+            updateData['showcase.rows'] = deleteField();
+            updateData['showcase.canvasSongIds'] = deleteField();
+            updateData['showcase.wideSongIds'] = deleteField();
+
+            await dataService.updateUser(currentUser.id, updateData);
+        } catch (err: any) {
+            console.warn('Showcase updated locally. Firestore sync notice:', err?.message || err);
+        }
     };
 
     const updatePlaylist = async (songIds: string[]) => {

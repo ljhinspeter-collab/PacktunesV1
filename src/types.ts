@@ -83,11 +83,19 @@ export interface Mixtape {
   songIds: string[]; // Array of CollectedSong IDs
 }
 
+export interface ShowcaseRowConfig {
+  isWide: boolean;
+  songIds: string[]; // up to 3 song IDs if !isWide, or 1 song ID if isWide
+}
+
 export interface Showcase {
   favoriteSongId?: string; // CollectedSong ID
   rarestSongId?: string; // CollectedSong ID
   proudestVinylIds?: string[]; // Array of Vinyl albumIds
   canvasSongIds?: string[]; // Array of CollectedSong IDs for Canvas Showcase
+  wideSongIds?: string[]; // Array of CollectedSong IDs displayed in 16:9 Widescreen mode
+  rowsJson?: string; // Stringified ShowcaseRowConfig[] to prevent Firestore index explosion
+  rows?: ShowcaseRowConfig[]; // 5 structured rows for row-based showcase
 }
 
 export interface Title {
@@ -184,6 +192,7 @@ export interface User {
     songId: string; // CollectedSong ID
     albumArtUrl: string; // For background visuals
   } | null;
+  profileTheme?: string; // e.g. 'default' | 'spooky' | 'gold_stage' | 'cyberpunk' | 'nebula'
   inventory: {
     shinyCharms: number;
     shinyPolishers: number;

@@ -45,7 +45,10 @@ const TitleEditor: React.FC<{
 export const CosmeticEditorModal: React.FC<{ user: User; onClose: () => void; }> = ({ user, onClose }) => {
     const { updateCurrentUser } = useContext(UserContext)!;
     const [isLoading, setIsLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState<'badges' | 'frames' | 'titles'>('badges');
+    const [activeTab, setActiveTab] = useState<'badges' | 'frames' | 'titles' | 'themes'>('badges');
+
+    // State for Profile Themes
+    const [selectedTheme, setSelectedTheme] = useState<string>(user.profileTheme || 'default');
 
     // State for Artist Badges
     const [selectedBadgeIds, setSelectedBadgeIds] = useState<Set<string>>(new Set(user.displayedArtistBadges || []));
@@ -108,6 +111,7 @@ export const CosmeticEditorModal: React.FC<{ user: User; onClose: () => void; }>
                 displayedArtistBadges: Array.from(selectedBadgeIds),
                 activeProfileFrame: selectedFrame || null,
                 activeTitleId: selectedTitleId,
+                profileTheme: selectedTheme,
             });
             onClose();
         } catch (error) {
@@ -122,10 +126,13 @@ export const CosmeticEditorModal: React.FC<{ user: User; onClose: () => void; }>
             <div className="modal-content w-full max-w-3xl bg-gray-800 rounded-lg p-6 flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
                 <h3 className="text-2xl font-bold mb-4">Customize Profile</h3>
                 
-                <div className="flex justify-center border-b border-gray-700 mb-4">
-                    <button onClick={() => setActiveTab('badges')} className={`px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'badges' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Artist Badges</button>
-                    <button onClick={() => setActiveTab('frames')} className={`px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'frames' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Profile Frames</button>
-                    <button onClick={() => setActiveTab('titles')} className={`px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'titles' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Titles</button>
+                <div className="flex justify-center border-b border-gray-700 mb-4 overflow-x-auto no-scrollbar">
+                    <button onClick={() => setActiveTab('badges')} className={`px-4 sm:px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'badges' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Artist Badges</button>
+                    <button onClick={() => setActiveTab('frames')} className={`px-4 sm:px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'frames' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Profile Frames</button>
+                    <button onClick={() => setActiveTab('titles')} className={`px-4 sm:px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'titles' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Titles</button>
+                    <button onClick={() => setActiveTab('themes')} className={`px-4 sm:px-6 py-3 font-semibold text-sm transition-colors flex items-center gap-1 ${activeTab === 'themes' ? 'border-b-2 border-purple-400 text-white' : 'text-gray-400 hover:text-white'}`}>
+                        <span>✨ Themes</span>
+                    </button>
                 </div>
 
                 <div className="flex-grow min-h-0 overflow-y-auto">
@@ -193,6 +200,39 @@ export const CosmeticEditorModal: React.FC<{ user: User; onClose: () => void; }>
                             activeTitleId={selectedTitleId}
                             onSelect={setSelectedTitleId}
                         />
+                    )}
+                    {activeTab === 'themes' && (
+                        <div className="space-y-4">
+                            <p className="text-sm text-gray-400">Select a Profile Theme to customize the background aura and shelf aesthetic behind your Vinyls and Showcase!</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {[
+                                    { id: 'default', name: 'Dark Obsidian', desc: 'Classic dark glass aesthetic', gradient: 'from-gray-900 via-gray-800 to-black', icon: '🌑' },
+                                    { id: 'spooky', name: 'Spooky Season 🎃', desc: '🕸 Spiderwebs, glowing ghosts & moonlit purple aura', gradient: 'from-purple-950 via-slate-900 to-black border-purple-500/50', icon: '👻' },
+                                    { id: 'gold_stage', name: 'Golden Stage 🌟', desc: 'Radiant golden spotlights & warm stage glow', gradient: 'from-amber-950 via-gray-900 to-black border-yellow-500/50', icon: '✨' },
+                                    { id: 'cyberpunk', name: 'Neon Cyberpunk ⚡', desc: 'Cyan & magenta neon grid aura', gradient: 'from-cyan-950 via-fuchsia-950 to-black border-cyan-500/50', icon: '🤖' },
+                                    { id: 'nebula', name: 'Cosmic Nebula 🌌', desc: 'Deep space stellar dust & purple galaxy glow', gradient: 'from-indigo-950 via-purple-950 to-black border-indigo-500/50', icon: '⭐' }
+                                ].map((t) => (
+                                    <button
+                                        key={t.id}
+                                        onClick={() => setSelectedTheme(t.id)}
+                                        className={`p-4 rounded-xl border text-left flex items-start gap-3 transition-all relative overflow-hidden bg-gradient-to-br ${t.gradient} ${
+                                            selectedTheme === t.id ? 'ring-2 ring-purple-400 border-purple-400 shadow-xl scale-[1.02]' : 'border-gray-700 hover:border-gray-500'
+                                        }`}
+                                    >
+                                        <span className="text-2xl">{t.icon}</span>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center justify-between">
+                                                <p className="font-extrabold text-white text-sm">{t.name}</p>
+                                                {selectedTheme === t.id && (
+                                                    <CheckCircleIcon className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-gray-300 mt-1">{t.desc}</p>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     )}
                 </div>
 

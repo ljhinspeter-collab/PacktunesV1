@@ -10,6 +10,8 @@ import { MASTERY_LEVELS } from '../contexts/UserContext'; // Import mastery conf
 import { getTrackDetails, getSongDetailsWithFallback } from '../services/musicService';
 import { DEFAULT_ALBUM_COVER, handleImageError, isPlaceholderCover } from '../utils/imageFallback';
 import { fetchMusicVideoCanvas } from '../services/canvasVideoService';
+import { CanvasVideoPlayer } from './CanvasVideoPlayer';
+import { GENRE_ARTISTS } from '../services/topArtistsService';
 
 const CreateTradeModal: React.FC<{ song: CollectedSong, onClose: () => void }> = ({ song, onClose }) => {
     const { createTradePost } = useContext(UserContext)!;
@@ -130,7 +132,245 @@ const SongPreview: React.FC<{
         updateCurrentUser({ activeStageTheme: null });
     };
 
+    const [detailStyle, setDetailStyle] = useState<'default' | 'soundmap'>(() => {
+        return (localStorage.getItem('packtunes_song_detail_style') as 'soundmap' | 'default') || 'default';
+    });
+
+    const [isWideMode, setIsWideMode] = useState<boolean>(() => {
+        return localStorage.getItem('packtunes_wide_video_mode') === 'true';
+    });
+
+    const handleToggleWideMode = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        setIsWideMode(prev => {
+            const next = !prev;
+            localStorage.setItem('packtunes_wide_video_mode', String(next));
+            return next;
+        });
+    };
+
+    useEffect(() => {
+        const handleStyleChange = () => {
+            const current = (localStorage.getItem('packtunes_song_detail_style') as 'soundmap' | 'default') || 'default';
+            setDetailStyle(current);
+        };
+        window.addEventListener('packtunes_song_detail_style_changed', handleStyleChange);
+        return () => window.removeEventListener('packtunes_song_detail_style_changed', handleStyleChange);
+    }, []);
+
     const jailbrokenTagText = `JAILBROKEN 1 of 1`;
+
+    const isSpecialCard = isMythic || isJailbroken || isShinyMythic;
+
+    if (isSpecialCard) {
+        const getSoundmapGlowColor = () => {
+            if (isShinyMythic) return 'border-amber-400/90 shadow-[0_0_60px_rgba(251,191,36,0.6)]';
+            if (isJailbroken) return 'border-cyan-400/90 shadow-[0_0_60px_rgba(34,211,238,0.6)]';
+            return 'border-amber-400/90 shadow-[0_0_60px_rgba(251,191,36,0.5)]';
+        };
+
+        const serialTag = isJailbroken
+            ? '#001'
+            : isMythic
+            ? `#${String(serialNumber || 1).padStart(3, '0')}`
+            : null;
+
+        const detectGenre = (s: Song): string => {
+            if ((s as any).genre && (s as any).genre !== 'Hip Hop' && (s as any).genre !== 'Unknown') {
+                return (s as any).genre;
+            }
+            const artistName = s.artist?.name;
+            if (artistName) {
+                for (const [genreKey, artistList] of Object.entries(GENRE_ARTISTS)) {
+                    if (artistList.some(name => name.toLowerCase() === artistName.toLowerCase())) {
+                        if (genreKey === 'HipHop') return 'Hip Hop';
+                        if (genreKey === 'KPop') return 'K-Pop';
+                        if (genreKey === 'RnB') return 'R&B';
+                        return genreKey; // Pop, Indie, Rock
+                    }
+                }
+            }
+            return (s as any).genre || 'Pop';
+        };
+
+        const songGenre = detectGenre(song);
+
+        const getGenrePillStyle = (genreStr: string) => {
+            const lower = (genreStr || '').toLowerCase();
+            if (lower.includes('hip hop') || lower.includes('hip-hop') || lower.includes('rap')) {
+                return 'bg-amber-900/90 text-amber-200 border-amber-500/70';
+            }
+            if (lower.includes('pop') && !lower.includes('k-pop') && !lower.includes('kpop')) {
+                return 'bg-blue-900/90 text-blue-200 border-blue-500/70';
+            }
+            if (lower.includes('indie') || lower.includes('alt') || lower.includes('folk')) {
+                return 'bg-emerald-900/90 text-emerald-200 border-emerald-500/70';
+            }
+            if (lower.includes('k-pop') || lower.includes('kpop') || lower.includes('j-pop') || lower.includes('jpop')) {
+                return 'bg-yellow-900/90 text-yellow-200 border-yellow-500/70';
+            }
+            if (lower.includes('rock') || lower.includes('metal') || lower.includes('punk')) {
+                return 'bg-purple-900/90 text-purple-200 border-purple-500/70';
+            }
+            if (lower.includes('r&b') || lower.includes('soul')) {
+                return 'bg-rose-900/90 text-rose-200 border-rose-500/70';
+            }
+            if (lower.includes('edm') || lower.includes('electronic') || lower.includes('house') || lower.includes('dance')) {
+                return 'bg-cyan-900/90 text-cyan-200 border-cyan-500/70';
+            }
+            return 'bg-slate-900/90 text-slate-200 border-slate-600/70';
+        };
+
+        const containerClasses = isWideMode
+            ? `modal-content relative w-[96vw] max-w-2xl sm:max-w-3xl aspect-[16/9] max-h-[85vh] rounded-[2rem] border-2 ${getSoundmapGlowColor()} overflow-hidden select-none shadow-2xl bg-black flex flex-col justify-between transition-all duration-300`
+            : `modal-content relative w-[92vw] max-w-sm sm:max-w-md aspect-[9/16] max-h-[88vh] rounded-[2.5rem] border-2 ${getSoundmapGlowColor()} overflow-hidden select-none shadow-2xl bg-black flex flex-col justify-between transition-all duration-300`;
+
+        return (
+            <div className={containerClasses} onClick={(e) => e.stopPropagation()}>
+                {/* 100% Full-Fill Video Canvas / Artwork Background */}
+                {canvasVideoUrl && isCanvasActive ? (
+                    <div className="absolute inset-0 w-full h-full bg-black">
+                        <CanvasVideoPlayer url={canvasVideoUrl} className="w-full h-full object-cover" isWideMode={isWideMode} />
+                    </div>
+                ) : (
+                    <img
+                        src={!isPlaceholderCover(song.albumArtUrl) ? song.albumArtUrl : DEFAULT_ALBUM_COVER}
+                        alt={song.title}
+                        onError={handleImageError}
+                        className="absolute inset-0 w-full h-full object-cover"
+                    />
+                )}
+
+                {/* Top Controls Overlay inside Video */}
+                <div className={`relative z-20 flex items-center justify-between transition-all duration-300 ${
+                    isWideMode 
+                        ? 'p-2 sm:p-2.5 bg-transparent' 
+                        : 'p-3 pt-3.5 sm:p-4 sm:pt-5 bg-gradient-to-b from-black/85 via-black/40 to-transparent'
+                }`}>
+                    <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0 overflow-x-auto no-scrollbar pr-1">
+                        <button
+                            onClick={onClose}
+                            className={`rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md flex items-center justify-center text-white transition-all border border-white/20 shadow-lg active:scale-95 flex-shrink-0 ${
+                                isWideMode ? 'w-7 h-7 sm:w-8 sm:h-8' : 'w-8 h-8 sm:w-9 sm:h-9'
+                            }`}
+                            title="Close"
+                        >
+                            <span className={`${isWideMode ? 'text-lg' : 'text-xl sm:text-2xl'} font-bold leading-none -mt-0.5`}>‹</span>
+                        </button>
+
+                        {/* Canvas Toggle Pill Badge */}
+                        {canvasVideoUrl && (
+                            <button
+                                onClick={onToggleCanvas}
+                                className={`bg-black/60 backdrop-blur-md text-emerald-400 border border-emerald-500/40 font-extrabold rounded-full shadow-lg flex items-center gap-1 hover:bg-black/80 transition-all flex-shrink-0 ${
+                                    isWideMode ? 'text-[9px] px-2 py-1' : 'text-[10px] sm:text-[11px] px-2.5 py-1'
+                                }`}
+                            >
+                                <span className={`${isWideMode ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full bg-emerald-400 animate-pulse`}></span>
+                                {isCanvasActive ? 'CANVAS' : 'NO CANVAS'}
+                            </button>
+                        )}
+
+                        {/* Small Play/Pause Pill Button */}
+                        <button
+                            onClick={onTogglePlayPause}
+                            disabled={isLoadingUrl}
+                            className={`bg-black/60 backdrop-blur-md text-white border border-white/30 font-extrabold rounded-full shadow-lg flex items-center gap-1 hover:bg-black/80 transition-all active:scale-95 disabled:opacity-50 flex-shrink-0 ${
+                                isWideMode ? 'text-[9px] px-2 py-1' : 'text-[10px] sm:text-[11px] px-2.5 py-1'
+                            }`}
+                        >
+                            {isPlaying ? (
+                                <>
+                                    <PauseIcon className={`${isWideMode ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-emerald-400`} />
+                                    <span>Pause</span>
+                                </>
+                            ) : (
+                                <>
+                                    <PlayIcon className={`${isWideMode ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-emerald-400`} />
+                                    <span>Play</span>
+                                </>
+                            )}
+                        </button>
+
+                        {/* Widescreen 16:9 Toggle Pill Button */}
+                        <button
+                            onClick={handleToggleWideMode}
+                            className={`bg-black/60 backdrop-blur-md text-cyan-300 border border-cyan-500/40 font-extrabold rounded-full shadow-lg flex items-center gap-1 hover:bg-black/80 transition-all active:scale-95 flex-shrink-0 ${
+                                isWideMode ? 'text-[9px] px-2 py-1' : 'text-[10px] sm:text-[11px] px-2.5 py-1'
+                            }`}
+                            title={isWideMode ? "Switch to Default Portrait View" : "Switch to 16:9 Widescreen View"}
+                        >
+                            <span>{isWideMode ? '↔ DEFAULT' : '↔ WIDE'}</span>
+                        </button>
+                    </div>
+
+                    {/* Top Right Serial # Badge (Only for Mythic / Jailbroken) */}
+                    {serialTag && (
+                        <div className={`bg-white/90 backdrop-blur-sm text-black font-black rounded-full shadow-xl border border-gray-200 tracking-wider flex-shrink-0 ml-1 ${
+                            isWideMode ? 'text-[9px] px-2 py-0.5' : 'text-xs px-2.5 sm:px-3 py-1'
+                        }`}>
+                            {serialTag}
+                        </div>
+                    )}
+                </div>
+
+                {/* Bottom Overlay Info Panel directly over Video Canvas */}
+                <div className={`relative z-20 flex flex-col transition-all duration-300 ${
+                    isWideMode 
+                        ? 'p-2 sm:p-3 bg-transparent gap-0.5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]' 
+                        : 'pt-20 pb-5 px-4 bg-gradient-to-t from-black via-black/80 to-transparent gap-1.5'
+                }`}>
+                    {/* Title */}
+                    <h2 className={`font-black text-white tracking-wide uppercase leading-tight line-clamp-1 drop-shadow-[0_2px_4px_rgba(0,0,0,1)] ${
+                        isWideMode ? 'text-xs sm:text-sm' : 'text-xl sm:text-2xl'
+                    }`}>
+                        {song.title}
+                    </h2>
+
+                    {/* Artist Name */}
+                    <p className={`font-bold text-gray-200 truncate drop-shadow-[0_2px_4px_rgba(0,0,0,1)] ${
+                        isWideMode ? 'text-[10px] sm:text-xs' : 'text-xs sm:text-sm text-gray-300'
+                    }`}>{song.artist.name}</p>
+
+                    {/* Soundmap Pills Row (Rarity, Genre, #1 Owner) */}
+                    <div className={`flex items-center overflow-x-auto no-scrollbar whitespace-nowrap font-extrabold ${
+                        isWideMode ? 'gap-1 pt-0.5 text-[9px]' : 'gap-1.5 pt-1 text-[11px]'
+                    }`}>
+                        {/* Rarity Pill */}
+                        <div className={`rounded-full shadow-lg flex items-center flex-shrink-0 backdrop-blur-md ${
+                            isWideMode ? 'px-2 py-0.5 gap-0.5' : 'px-2.5 py-1 gap-1'
+                        } ${
+                            isShinyMythic
+                                ? 'bg-gradient-to-r from-amber-400/90 via-yellow-300/90 to-amber-500/90 text-black border border-yellow-200/80'
+                                : isJailbroken
+                                ? 'bg-black text-cyan-300 border border-cyan-400'
+                                : 'bg-gradient-to-r from-yellow-400/90 via-amber-300/90 to-yellow-500/90 text-black border border-yellow-200/80'
+                        }`}>
+                            <DiamondIcon className={isWideMode ? 'w-2.5 h-2.5' : 'w-3 h-3'} />
+                            <span>
+                                {isJailbroken ? 'Jailbroken 1 of 1' : isShinyMythic ? 'Shiny Mythic' : 'Mythic'}
+                            </span>
+                        </div>
+
+                        {/* Genre Pill */}
+                        <div className={`rounded-full shadow-lg flex items-center flex-shrink-0 backdrop-blur-md border ${
+                            isWideMode ? 'px-2 py-0.5' : 'px-2.5 py-1'
+                        } ${getGenrePillStyle(songGenre)}`}>
+                            <span>{songGenre}</span>
+                        </div>
+
+                        {/* #1 Owner Pill */}
+                        <div className={`bg-gray-900/80 text-gray-200 border border-gray-700/80 rounded-full shadow-lg flex items-center flex-shrink-0 backdrop-blur-md ${
+                            isWideMode ? 'px-2 py-0.5' : 'px-2.5 py-1'
+                        }`}>
+                            <span>#1 Owner: <strong className="text-yellow-400 pl-0.5">{mythicOwnerName}</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
     <>
@@ -139,15 +379,9 @@ const SongPreview: React.FC<{
             onClick={(e) => e.stopPropagation()}
         >
              {canvasVideoUrl && isCanvasActive ? (
-                <video
-                    src={canvasVideoUrl}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="absolute inset-0 w-full h-full object-cover filter blur-xl brightness-40"
-                    aria-hidden="true"
-                />
+                <div className="absolute inset-0 w-full h-full filter blur-xl brightness-40">
+                  <CanvasVideoPlayer url={canvasVideoUrl} className="w-full h-full object-cover" />
+                </div>
              ) : (
                 <img 
                     src={!isPlaceholderCover(song.albumArtUrl) ? song.albumArtUrl : DEFAULT_ALBUM_COVER} 
@@ -193,16 +427,9 @@ const SongPreview: React.FC<{
                     <div className="relative w-full aspect-square mx-auto">
                         <div className={`relative w-full h-full rounded-lg shadow-lg overflow-hidden ${getImageBorder()}`}>
                             {canvasVideoUrl && isCanvasActive ? (
-                                <div className="relative w-full h-full bg-black">
-                                    <video
-                                        src={canvasVideoUrl}
-                                        autoPlay
-                                        loop
-                                        muted
-                                        playsInline
-                                        className="w-full h-full object-cover rounded-md"
-                                    />
-                                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-sm text-[10px] font-bold text-emerald-400 border border-emerald-500/40 flex items-center gap-1 shadow-lg pointer-events-none">
+                                <div className="relative w-full h-full bg-black rounded-md overflow-hidden">
+                                    <CanvasVideoPlayer url={canvasVideoUrl} className="w-full h-full object-cover rounded-md" />
+                                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-sm text-[10px] font-bold text-emerald-400 border border-emerald-500/40 flex items-center gap-1 shadow-lg pointer-events-none z-10">
                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                                         CANVAS
                                     </div>
@@ -369,9 +596,15 @@ export const SongPreviewModal: React.FC<{
         };
     }, []);
 
-    // Effect to check if a Spotify-style Music Video Canvas is available
+    const isMythicOrJailbroken = displaySong.rarity === Rarity.Mythic || displaySong.rarity === Rarity.Jailbroken;
+
+    // Effect to check if a Spotify-style Music Video Canvas is available (ONLY for Mythics & Jailbrokens)
     useEffect(() => {
         let isMounted = true;
+        if (!isMythicOrJailbroken) {
+            setCanvasVideoUrl(null);
+            return;
+        }
         fetchMusicVideoCanvas(displaySong.artist.name, displaySong.title)
             .then((videoUrl) => {
                 if (isMounted && videoUrl) {
@@ -380,7 +613,7 @@ export const SongPreviewModal: React.FC<{
             })
             .catch(() => {});
         return () => { isMounted = false; };
-    }, [displaySong.artist.name, displaySong.title]);
+    }, [displaySong.artist.name, displaySong.title, isMythicOrJailbroken]);
     
     // Effect to fetch the live preview URL for audio with search fallback
     useEffect(() => {
@@ -398,7 +631,7 @@ export const SongPreviewModal: React.FC<{
                     }));
 
                     if (freshSong.previewUrl) {
-                        setLivePreviewUrl(freshSong.previewUrl);
+                        setLivePreviewUrl(prev => prev === freshSong.previewUrl ? prev : freshSong.previewUrl);
                     }
 
                     // Update collection item in context/Firestore if fixed
@@ -435,35 +668,20 @@ export const SongPreviewModal: React.FC<{
         let isMounted = true;
         const fetchOwner = async () => {
             try {
-                // If this preview is for a Mythic card, check direct ownership attribution first
-                if (collectedSong.song.rarity === Rarity.Mythic) {
-                    if (collectedSong.ownerId && userContext?.currentUser && collectedSong.ownerId === userContext.currentUser.id) {
-                        if (isMounted) setMythicOwnerName(userContext.currentUser.name);
-                        return;
-                    }
-                    if (collectedSong.ownerId && userContext?.users) {
-                        const directOwner = userContext.users.find(u => u.id === collectedSong.ownerId);
-                        if (directOwner && directOwner.name) {
-                            if (isMounted) setMythicOwnerName(directOwner.name);
-                            return;
-                        }
-                    }
-                }
-
-                if (userContext?.findMythicOwnerName) {
-                    const ownerName = await userContext.findMythicOwnerName(collectedSong.song.id, collectedSong.serialNumber || 1);
-                    if (isMounted) setMythicOwnerName(ownerName || (collectedSong.song.rarity === Rarity.Mythic && userContext.currentUser?.name ? userContext.currentUser.name : 'Not Pulled'));
+                if (userContext?.findMythicOwnerName && collectedSong.song.rarity === Rarity.Mythic) {
+                    const ownerName = await userContext.findMythicOwnerName(collectedSong.song.id, 1);
+                    if (isMounted) setMythicOwnerName(ownerName || 'Not Pulled');
                 } else {
-                    if (isMounted) setMythicOwnerName(collectedSong.song.rarity === Rarity.Mythic && userContext?.currentUser?.name ? userContext.currentUser.name : 'Not Pulled');
+                    if (isMounted) setMythicOwnerName('Not Pulled');
                 }
             } catch (error) {
                 console.error("Error fetching #1 mythic owner:", error);
-                if (isMounted) setMythicOwnerName(collectedSong.song.rarity === Rarity.Mythic && userContext?.currentUser?.name ? userContext.currentUser.name : 'Not Pulled');
+                if (isMounted) setMythicOwnerName('Not Pulled');
             }
         };
         fetchOwner();
         return () => { isMounted = false; };
-    }, [collectedSong, userContext?.findMythicOwnerName, userContext?.currentUser, userContext?.users]);
+    }, [collectedSong.song.id, collectedSong.song.rarity, userContext?.findMythicOwnerName]);
 
     // Create and manage audio element, now dependent on the live URL
     useEffect(() => {
@@ -488,10 +706,8 @@ export const SongPreviewModal: React.FC<{
         audio.addEventListener('play', handlePlay);
         audio.addEventListener('pause', handlePause);
         
-        // Autoplay with safe catch
-        audio.play().catch(() => {
-            setIsPlaying(false);
-        });
+        // Audio requires explicit user click on Play button to prevent stuttering
+        setIsPlaying(false);
         
         return () => {
             audio.pause();

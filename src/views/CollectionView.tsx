@@ -24,6 +24,7 @@ import { ArtistBadgeIcon } from '../components/ArtistBadgeIcon';
 import { SongListItem } from '../components/SongListItem';
 import { SongCard } from '../components/SongCard';
 import { CanvasShowcaseView } from '../components/CanvasShowcaseView';
+import { ManageVinylShelfModal } from '../components/ManageVinylShelfModal';
 import { DEFAULT_VINYL_COVER, DEFAULT_ALBUM_COVER, handleImageError, isPlaceholderCover } from '../utils/imageFallback';
 
 const ShowcaseItem: React.FC<{
@@ -89,6 +90,102 @@ const ShowcaseItem: React.FC<{
     )
 };
 
+
+const VinylShelfSection: React.FC<{
+  user: User;
+  isCurrentUser: boolean;
+  vinyls: Vinyl[];
+  pinnedVinylIds: string[];
+  onPlayVinyl: (v: Vinyl) => void;
+  onOpenCosmetics: () => void;
+}> = ({ user, isCurrentUser, vinyls, pinnedVinylIds, onPlayVinyl, onOpenCosmetics }) => {
+  const theme = user.profileTheme || 'default';
+  const isSpooky = theme === 'spooky';
+
+  // Resolve up to 4 pinned or top vinyls
+  const pinnedVinyls = useMemo(() => {
+    const map = new Map(vinyls.map((v) => [v.albumId, v]));
+    if (pinnedVinylIds.length > 0) {
+      return pinnedVinylIds.map((id) => map.get(id)).filter((v): v is Vinyl => !!v).slice(0, 4);
+    }
+    return vinyls.slice(0, 4);
+  }, [vinyls, pinnedVinylIds]);
+
+  return (
+    <div className={`relative p-5 rounded-3xl border overflow-hidden transition-all shadow-2xl mb-6 max-w-5xl mx-auto ${
+      isSpooky
+        ? 'bg-gradient-to-b from-purple-950/70 via-slate-900/90 to-black/90 border-purple-500/40 shadow-purple-900/20'
+        : 'bg-gradient-to-b from-gray-900/80 via-gray-900/60 to-black/80 border-gray-800'
+    }`}>
+      {/* Spooky Season Web Accents */}
+      {isSpooky && (
+        <>
+          <div className="absolute top-1 left-2 text-2xl opacity-40 pointer-events-none select-none">🕸</div>
+          <div className="absolute top-1 right-2 text-2xl opacity-40 pointer-events-none select-none">🕸</div>
+        </>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">💿</span>
+          <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">Golden Vinyl Display</h3>
+        </div>
+
+        {isCurrentUser && (
+          <button
+            onClick={onOpenCosmetics}
+            className="text-xs font-bold text-gray-300 hover:text-white bg-gray-800/80 hover:bg-gray-700 px-3.5 py-1.5 rounded-xl border border-gray-700 transition-all active:scale-95"
+          >
+            Choose vinyls
+          </button>
+        )}
+      </div>
+
+      {/* Realistic Shelf Area with 4 Slots */}
+      <div className="relative pt-2 pb-6 px-2">
+        {/* Shelf Line */}
+        <div className="absolute bottom-2 left-2 right-2 h-2.5 bg-gradient-to-r from-gray-700 via-gray-600 to-gray-700 rounded-full border-t border-gray-500/60 shadow-lg"></div>
+
+        {/* 4 Vinyl Slots */}
+        <div className="relative z-10 grid grid-cols-4 gap-3 sm:gap-6 max-w-xl mx-auto">
+          {[0, 1, 2, 3].map((index) => {
+            const vinyl = pinnedVinyls[index];
+
+            return (
+              <div key={index} className="flex flex-col items-center">
+                {vinyl ? (
+                  <button
+                    onClick={() => onPlayVinyl(vinyl)}
+                    className="group relative w-16 h-16 sm:w-20 sm:h-20 transition-all duration-300 hover:scale-105"
+                    title={vinyl.albumName}
+                  >
+                    <div className={`absolute inset-0 rounded-full shadow-2xl transition-all ${
+                      isSpooky ? 'bg-purple-900 shadow-purple-500/50' : 'bg-black shadow-black/80'
+                    }`}></div>
+                    <img
+                      src={!isPlaceholderCover(vinyl.albumArtUrl) ? vinyl.albumArtUrl : DEFAULT_VINYL_COVER}
+                      onError={(e) => handleImageError(e, DEFAULT_VINYL_COVER)}
+                      alt={vinyl.albumName}
+                      className="absolute inset-1.5 w-[calc(100%-0.75rem)] h-[calc(100%-0.75rem)] rounded-full object-cover border border-white/20 group-hover:rotate-12 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <PlayIcon className="w-5 h-5 text-white" />
+                    </div>
+                  </button>
+                ) : (
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 border-2 border-dashed border-gray-700/80 hover:border-gray-500 rounded-2xl flex flex-col items-center justify-center bg-gray-900/40 transition-colors">
+                    <span className="text-gray-600 font-bold text-lg">+</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ProfileEditModal: React.FC<{ user: User, onSave: (data: Partial<User>) => void, onClose: () => void }> = ({ user, onSave, onClose }) => {
     const [name, setName] = useState(user.name);
@@ -328,7 +425,8 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
   const [isShowingFavorites, setIsShowingFavorites] = useState(false);
   const [isShowingAccount, setIsShowingAccount] = useState(false);
   const [isCosmeticEditorOpen, setIsCosmeticEditorOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<ProfileViewTab>('collection');
+  const [isManageVinylModalOpen, setIsManageVinylModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<ProfileViewTab>('showcase');
   const [sortMode, setSortMode] = useState<'top' | 'recent'>('top');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [playingVinyl, setPlayingVinyl] = useState<Vinyl | null>(null);
@@ -541,6 +639,15 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
     };
 
 
+  const profileTheme = user.profileTheme || 'default';
+  const getThemeProfileBorder = () => {
+    if (profileTheme === 'spooky') return 'bg-gradient-to-br from-purple-950/70 via-slate-900/90 to-black border-purple-500/40 shadow-xl shadow-purple-950/40';
+    if (profileTheme === 'gold_stage') return 'bg-gradient-to-br from-amber-950/70 via-gray-900/90 to-black border-yellow-500/40 shadow-xl shadow-amber-950/40';
+    if (profileTheme === 'cyberpunk') return 'bg-gradient-to-br from-cyan-950/70 via-fuchsia-950/60 to-black border-cyan-500/40 shadow-xl shadow-cyan-950/40';
+    if (profileTheme === 'nebula') return 'bg-gradient-to-br from-indigo-950/70 via-purple-950/60 to-black border-indigo-500/40 shadow-xl shadow-indigo-950/40';
+    return user.activeStageTheme ? 'bg-transparent border-transparent' : 'bg-gray-800/50 border-gray-700';
+  };
+
   return (
     <div className="relative">
       {user.activeStageTheme && (
@@ -556,7 +663,7 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
              </div>
         </div>
       )}
-      <div className={`flex flex-col md:flex-row items-start gap-6 mb-8 p-6 rounded-lg border ${user.activeStageTheme ? 'bg-transparent border-transparent' : 'bg-gray-800/50 border-gray-700'}`}>
+      <div className={`flex flex-col md:flex-row items-start gap-6 mb-8 p-6 rounded-2xl border ${getThemeProfileBorder()}`}>
         <div className="flex-shrink-0 flex flex-col items-center w-full md:w-auto">
             {user.activeProfileFrame ? (
                  <ProfileFrame pfpUrl={user.pfpUrl} frameUrl={user.activeProfileFrame.albumArtUrl} size="lg" />
@@ -636,37 +743,6 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
             </div>
           )}
 
-           <div className="mt-4 pt-4 border-t border-gray-700 flex flex-col items-center gap-6">
-                <div className="flex justify-around items-start w-full">
-                    <ShowcaseItem title="Favorite Song" item={showcaseItems.favoriteSong} onClick={() => showcaseItems.favoriteSong && setSelectedSong(showcaseItems.favoriteSong)} />
-                    <ShowcaseItem title="Rarest Gem" item={showcaseItems.rarestSong} onClick={() => showcaseItems.rarestSong && setSelectedSong(showcaseItems.rarestSong)} />
-                </div>
-                <div className="flex flex-col items-center gap-2">
-                    <div className="flex gap-2 h-24 items-center">
-                        {[0, 1, 2].map(i => {
-                            const vinyl = showcaseItems.proudestVinyls[i];
-                            return (
-                                <div key={i} className="w-20 h-20">
-                                    {vinyl ? (
-                                        <button onClick={() => setPlayingVinyl(vinyl)} className="group w-full h-full relative">
-                                            <div className="absolute inset-0 bg-black rounded-full transition-transform duration-300 group-hover:scale-105"></div>
-                                            <img 
-                                                src={vinyl.albumArtUrl || DEFAULT_VINYL_COVER} 
-                                                onError={(e) => handleImageError(e, DEFAULT_VINYL_COVER)}
-                                                alt={vinyl.albumName} 
-                                                className="absolute inset-1 w-[calc(100%-0.5rem)] h-[calc(100%-0.5rem)] rounded-full object-cover" 
-                                            />
-                                        </button>
-                                    ) : (
-                                        <div className="w-full h-full border-2 border-dashed border-gray-600 rounded-full"></div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <p className="text-xs font-semibold text-gray-400">Showcased Vinyls</p>
-                </div>
-           </div>
         </div>
       </div>
 
@@ -815,11 +891,47 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
       )}
 
       {activeTab === 'showcase' && (
-        <CanvasShowcaseView 
+        <div className="space-y-6">
+          {/* Vinyl Shelf */}
+          <VinylShelfSection
+            user={user}
+            isCurrentUser={isCurrentUser}
+            vinyls={user.vinyls || []}
+            pinnedVinylIds={user.showcase?.proudestVinylIds || []}
+            onPlayVinyl={(v) => setPlayingVinyl(v)}
+            onOpenCosmetics={() => setIsManageVinylModalOpen(true)}
+          />
+
+          {/* Dynamic 15-Capacity Mythic Showcase Grid */}
+          <CanvasShowcaseView 
             user={user} 
             collection={collection} 
             onSongClick={handleSongClick} 
-        />
+          />
+
+          {/* My Collection Action Pill Button */}
+          <div className="max-w-xl mx-auto pt-2 pb-6 px-4">
+            <button
+              onClick={() => setActiveTab('collection')}
+              className="w-full py-3.5 px-5 rounded-2xl bg-gray-800/90 hover:bg-gray-700/90 border border-gray-700/80 backdrop-blur-md flex items-center justify-between shadow-xl transition-all hover:scale-[1.01] active:scale-98 group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gray-700/60 group-hover:bg-gray-600 text-white transition-colors">
+                  <Squares2x2Icon className="w-5 h-5" />
+                </div>
+                <span className="font-extrabold text-white text-base tracking-tight">My collection</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-gray-400 group-hover:text-gray-200 transition-colors">
+                  {collection.length} cards
+                </span>
+                <span className="text-gray-400 group-hover:text-white text-lg font-bold transition-transform group-hover:translate-x-0.5">
+                  ›
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
       )}
       {activeTab === 'playlist' && isCurrentUser && <PlaylistEditorView />}
       {activeTab === 'vinyls' && (
@@ -864,6 +976,14 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
                 <CosmeticEditorModal
                     user={user}
                     onClose={() => setIsCosmeticEditorOpen(false)}
+                />
+            )}
+            {isManageVinylModalOpen && (
+                <ManageVinylShelfModal
+                    vinyls={user.vinyls || []}
+                    pinnedIds={user.showcase?.proudestVinylIds || []}
+                    onClose={() => setIsManageVinylModalOpen(false)}
+                    onPlayVinyl={(v) => setPlayingVinyl(v)}
                 />
             )}
         </>

@@ -138,76 +138,80 @@ class DataService {
         return result;
     }
 
-    async findMythicOwnerName(songId: string, serialNumber: number): Promise<string | null> {
-        const ownerDocRef = doc(db, 'firstMythicOwners', songId);
+    async findMythicOwnerName(songId: string, _serialNumber?: number): Promise<string | null> {
         try {
-            const ownerDocSnap = await getDoc(ownerDocRef);
-
+            const ownerDocSnap = await getDoc(doc(db, 'firstMythicOwners', songId));
             if (ownerDocSnap.exists()) {
                 return ownerDocSnap.data().ownerName || null;
             }
-            
             return null;
-
         } catch (error) {
-            console.error("Error fetching from firstMythicOwners:", error);
+            console.warn("Error fetching #1 Mythic owner:", error);
             return null; 
         }
     }
     
-    async fixNullMythicSerials(user: User, collection: CollectedSong[]): Promise<void> {
-        const songsToFix = collection.filter(cs => cs.song.rarity === Rarity.Mythic && (cs.serialNumber === null || cs.serialNumber === undefined));
+    async fixMythicSerialsAndOwners(user: User, collection: CollectedSong[]): Promise<CollectedSong[]> {
+        const mythicSongs = collection.filter(cs => cs.song.rarity === Rarity.Mythic);
+        if (mythicSongs.length === 0) return collection;
 
-        if (songsToFix.length === 0) {
-            return;
-        }
+        let hasUpdated = false;
+        const updatedCollection = collection.map(cs => ({ ...cs }));
 
-        console.log(`Found ${songsToFix.length} Mythic song(s) with null serial numbers. Attempting to fix...`);
-
-        const groupedBySongId: { [songId: string]: CollectedSong[] } = {};
-        for (const cs of songsToFix) {
-            if (!groupedBySongId[cs.song.id]) {
-                groupedBySongId[cs.song.id] = [];
+        const groupedBySongId: Record<string, CollectedSong[]> = {};
+        for (const cs of updatedCollection) {
+            if (cs.song.rarity === Rarity.Mythic) {
+                if (!groupedBySongId[cs.song.id]) groupedBySongId[cs.song.id] = [];
+                groupedBySongId[cs.song.id].push(cs);
             }
-            groupedBySongId[cs.song.id].push(cs);
         }
-        
-        for (const songId in groupedBySongId) {
-            try {
-                await runTransaction(db, async (transaction) => {
-                    const serialRef = doc(db, 'mythicSerials', songId);
-                    const serialDoc = await transaction.get(serialRef);
-                    let currentCount = serialDoc.exists() ? serialDoc.data().count : 0;
-                    
-                    const wasFirstSerialization = currentCount === 0;
-        
-                    const songsForThisId = groupedBySongId[songId];
-                    console.log(`Fixing ${songsForThisId.length} copies of song ${songId}. Starting from serial #${currentCount + 1}`);
 
-                    for (const collectedSong of songsForThisId) {
-                        currentCount++;
-                        const songRef = doc(db, 'users', user.id, 'collection', collectedSong.id);
-                        transaction.update(songRef, { serialNumber: currentCount });
-                        
-                        if (wasFirstSerialization && currentCount === 1) {
-                            const ownerRef = doc(db, 'firstMythicOwners', songId);
-                            transaction.set(ownerRef, { ownerId: user.id, ownerName: user.name });
-                            console.log(`Retroactively assigned Mythic #1 owner for song ${songId} to ${user.name}.`);
-                        }
+        for (const songId of Object.keys(groupedBySongId)) {
+            const songsForThisId = groupedBySongId[songId];
+            songsForThisId.sort((a, b) => (a.collectedAt || 0) - (b.collectedAt || 0));
+
+            const hasSerial1 = songsForThisId.some(cs => cs.serialNumber === 1);
+
+            if (!hasSerial1 && songsForThisId.length > 0) {
+                try {
+                    const ownerRef = doc(db, 'firstMythicOwners', songId);
+                    const ownerSnap = await getDoc(ownerRef).catch(() => null);
+                    const existingOwnerId = ownerSnap?.exists() ? ownerSnap.data().ownerId : null;
+
+                    // If no recorded owner exists, or if recorded owner is this user
+                    if (!existingOwnerId || existingOwnerId === user.id) {
+                        const earliestCopy = songsForThisId[0];
+                        earliestCopy.serialNumber = 1;
+                        hasUpdated = true;
+
+                        const songRef = doc(db, 'users', user.id, 'collection', earliestCopy.id);
+                        await updateDoc(songRef, { serialNumber: 1 }).catch(() => {});
+                        await setDoc(ownerRef, { ownerId: user.id, ownerName: user.name }, { merge: true }).catch(() => {});
+
+                        console.log(`Normalized earliest Mythic copy for ${earliestCopy.song.title} to Serial #1 for ${user.name}`);
                     }
-        
-                    transaction.set(serialRef, { count: currentCount }, { merge: true });
-                });
-                console.log(`Successfully fixed serial numbers for song ${songId}.`);
-            } catch (error: any) {
-                console.warn(`Could not fix serial for song ${songId} in this session:`, error.message);
-                if (error.code === 'resource-exhausted' || (error.message && error.message.toLowerCase().includes('quota exceeded'))) {
-                    console.warn(`Quota exceeded while fixing serials. Stopping for this session. The rest will be fixed on next login.`);
-                    break;
+                } catch (e) {
+                    console.warn(`Error normalizing mythic serial for ${songId}:`, e);
                 }
+            } else if (hasSerial1) {
+                try {
+                    const ownerRef = doc(db, 'firstMythicOwners', songId);
+                    await setDoc(ownerRef, { ownerId: user.id, ownerName: user.name }, { merge: true }).catch(() => {});
+                } catch {}
             }
-            await new Promise(resolve => setTimeout(resolve, 2000));
         }
+
+        if (hasUpdated && user.id) {
+            try {
+                localStorage.setItem(`packtunes_collection_${user.id}`, JSON.stringify(updatedCollection));
+            } catch {}
+        }
+
+        return updatedCollection;
+    }
+
+    async fixNullMythicSerials(user: User, collection: CollectedSong[]): Promise<CollectedSong[]> {
+        return this.fixMythicSerialsAndOwners(user, collection);
     }
 
     async getFirstMythicOwnerRecords(songIds: string[]): Promise<{ id: string }[]> {

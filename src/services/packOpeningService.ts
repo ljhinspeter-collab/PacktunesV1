@@ -102,6 +102,7 @@ export const generateAndOpenPack = async (
     retro_legends: ['Queen', 'Michael Jackson', 'Prince', 'Nirvana', 'Fleetwood Mac', 'Madonna', 'Tupac', 'Pink Floyd', 'AC/DC', 'The Beatles', 'David Bowie', 'Guns N\' Roses'],
     kpop_fever: ['BTS', 'BLACKPINK', 'TWICE', 'Stray Kids', 'NewJeans', 'LE SSERAFIM', 'aespa', 'YOASOBI', 'Kenshi Yonezu', 'Ado', 'SEVENTEEN', '(G)I-DLE'],
     indie_gems: ['Tame Impala', 'Arctic Monkeys', 'Phoebe Bridgers', 'Frank Ocean', 'Steve Lacy', 'Clairo', 'Tyler, The Creator', 'Dominic Fike', 'The Strokes', 'Lana Del Rey', 'Gorillaz'],
+    pop_2010s_2020s: ['Taylor Swift', 'Ariana Grande', 'Dua Lipa', 'The Weeknd', 'Justin Bieber', 'Katy Perry', 'Bruno Mars', 'Olivia Rodrigo', 'Billie Eilish', 'Harry Styles', 'Rihanna', 'Lady Gaga', 'Ed Sheeran', 'Sabrina Carpenter', 'Chappell Roan', 'Charli xcx', 'Tate McRae', 'Post Malone', 'Shawn Mendes', 'Doja Cat', 'SZA', 'Miley Cyrus'],
   };
 
   // Check Daily Mythic rules
@@ -128,6 +129,8 @@ export const generateAndOpenPack = async (
     packSlots = ['KPop', 'KPop', 'KPop', 'KPop', 'KPop', 'KPop'];
   } else if (packType === 'indie_gems') {
     packSlots = ['Indie', 'Indie', 'Indie', 'Indie', 'Indie', 'Indie'];
+  } else if (packType === 'pop_2010s_2020s') {
+    packSlots = ['Pop', 'Pop', 'Pop', 'Pop', 'Pop', 'Pop'];
   } else if (packType === 'retro_legends') {
     packSlots = ['Rock', 'Rock', 'Rock', 'Pop', 'Pop', 'Rock'];
   } else {
@@ -306,7 +309,7 @@ export const generateAndOpenPack = async (
       } catch {}
     }
 
-    const isThemedGenrePack = ['hiphop_royalty', 'kpop_fever', 'indie_gems', 'retro_legends'].includes(packType);
+    const isThemedGenrePack = ['hiphop_royalty', 'kpop_fever', 'indie_gems', 'retro_legends', 'pop_2010s_2020s'].includes(packType);
     const isExcludedFromClanWar = packType !== 'standard';
     const shinyMultiplier = packType === 'shiny_rush' ? 5 : 1;
     const collectedSong = assignSongAttributes(chosenRawSong, userId, {

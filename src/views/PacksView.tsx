@@ -14,6 +14,8 @@ interface PackOption {
     glowClass: string;
 }
 
+const GENRE_PACK_IDS = ['hiphop_royalty', 'kpop_fever', 'indie_gems', 'retro_legends', 'pop_2010s_2020s'];
+
 const PACK_OPTIONS: PackOption[] = [
     {
         id: 'daily_mythic',
@@ -38,11 +40,22 @@ const PACK_OPTIONS: PackOption[] = [
         glowClass: 'shadow-emerald-500/30',
     },
     {
+        id: 'pop_2010s_2020s',
+        title: '2010s & 2020s Pop Hits',
+        badge: '✨ 100 DAILY LIMIT',
+        description: 'Billboard-topping pop anthems, chart-toppers, and viral hits.',
+        perks: ['🎤 Taylor Swift, Ariana Grande, Dua Lipa, The Weeknd', '🌟 Justin Bieber, Olivia Rodrigo, Billie Eilish, Harry Styles', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
+        gradient: 'from-violet-600 via-fuchsia-600 to-pink-700',
+        borderColor: 'border-fuchsia-400',
+        textColor: 'text-fuchsia-300',
+        glowClass: 'shadow-fuchsia-500/30',
+    },
+    {
         id: 'hiphop_royalty',
         title: 'Hip Hop Royalty',
-        badge: '🎤 20 DAILY LIMIT',
+        badge: '🎤 100 DAILY LIMIT',
         description: 'Pulls strictly from the greatest rap & trap pioneers.',
-        perks: ['👑 Kendrick, Drake, J. Cole, Travis Scott, Ye', '🔥 100% Hip-Hop Card Guarantee', '📊 Shared 20 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
+        perks: ['👑 Kendrick, Drake, J. Cole, Travis Scott, Ye', '🔥 100% Hip-Hop Card Guarantee', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
         gradient: 'from-red-600 via-rose-800 to-amber-900',
         borderColor: 'border-red-500',
         textColor: 'text-red-300',
@@ -51,9 +64,9 @@ const PACK_OPTIONS: PackOption[] = [
     {
         id: 'retro_legends',
         title: '80s & 90s Vintage Legends',
-        badge: '🎸 20 DAILY LIMIT',
+        badge: '🎸 100 DAILY LIMIT',
         description: 'Timeless rock, pop, and hip hop classics.',
-        perks: ['⚡ Queen, Michael Jackson, Prince, Nirvana', '🎧 Fleetwood Mac, Madonna, Tupac, Biggie', '📊 Shared 20 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
+        perks: ['⚡ Queen, Michael Jackson, Prince, Nirvana', '🎧 Fleetwood Mac, Madonna, Tupac, Biggie', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
         gradient: 'from-purple-600 via-fuchsia-800 to-indigo-900',
         borderColor: 'border-fuchsia-400',
         textColor: 'text-fuchsia-300',
@@ -62,9 +75,9 @@ const PACK_OPTIONS: PackOption[] = [
     {
         id: 'kpop_fever',
         title: 'K-Pop & J-Pop Fever',
-        badge: '🌸 20 DAILY LIMIT',
+        badge: '🌸 100 DAILY LIMIT',
         description: 'High-energy idols, viral anthems, and anime OSTs.',
-        perks: ['🌸 BTS, BLACKPINK, TWICE, Stray Kids', '💖 100% K-Pop / J-Pop Card Guarantee', '📊 Shared 20 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
+        perks: ['🌸 BTS, BLACKPINK, TWICE, Stray Kids', '💖 100% K-Pop / J-Pop Card Guarantee', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
         gradient: 'from-pink-500 via-rose-600 to-purple-800',
         borderColor: 'border-pink-400',
         textColor: 'text-pink-300',
@@ -73,9 +86,9 @@ const PACK_OPTIONS: PackOption[] = [
     {
         id: 'indie_gems',
         title: 'Indie & Underground Gems',
-        badge: '🌿 20 DAILY LIMIT',
+        badge: '🌿 100 DAILY LIMIT',
         description: 'Alternative, indie rock, and bedroom pop favorites.',
-        perks: ['🌿 Tame Impala, Arctic Monkeys, Phoebe Bridgers', '🌊 100% Indie Card Guarantee', '📊 Shared 20 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
+        perks: ['🌿 Tame Impala, Arctic Monkeys, Phoebe Bridgers', '🌊 100% Indie Card Guarantee', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
         gradient: 'from-cyan-600 via-blue-800 to-slate-900',
         borderColor: 'border-cyan-400',
         textColor: 'text-cyan-300',
@@ -129,8 +142,8 @@ export const PacksView: React.FC = () => {
     const isMythicClaimedToday = lastMythicClaimDate === todayDateString;
     const isShinyRushDepleted = shinyClaimsToday >= 5;
 
-    const isSelectedGenrePack = ['hiphop_royalty', 'kpop_fever', 'indie_gems', 'retro_legends'].includes(selectedPack.id);
-    const isGenreLimitReached = genreClaimsToday >= 20;
+    const isSelectedGenrePack = GENRE_PACK_IDS.includes(selectedPack.id);
+    const isGenreLimitReached = genreClaimsToday >= 100;
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -167,7 +180,7 @@ export const PacksView: React.FC = () => {
         }
 
         if (isSelectedGenrePack && isGenreLimitReached) {
-            alert("You have reached your 20 Daily Genre Packs limit for today! Check back tomorrow or open Unlimited Standard Packs!");
+            alert("You have reached your 100 Daily Genre Packs limit for today! Check back tomorrow or open Unlimited Standard Packs!");
             return;
         }
 
@@ -240,13 +253,13 @@ export const PacksView: React.FC = () => {
                                             {shinyClaimsToday}/5 Claims
                                         </span>
                                     )}
-                                    {['hiphop_royalty', 'kpop_fever', 'indie_gems', 'retro_legends'].includes(pack.id) && (
+                                    {GENRE_PACK_IDS.includes(pack.id) && (
                                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
                                             isGenreLimitReached 
                                                 ? 'bg-red-500/20 text-red-300 border-red-500/40' 
                                                 : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                                         }`}>
-                                            {genreClaimsToday}/20 Genre
+                                            {genreClaimsToday}/100 Genre
                                         </span>
                                     )}
                                 </div>
@@ -336,13 +349,13 @@ export const PacksView: React.FC = () => {
                         <PackageIcon className="w-6 h-6 text-purple-400 mx-auto mb-1" />
                         {isGenreLimitReached ? (
                             <>
-                                <p className="text-xs font-extrabold text-red-300">20/20 GENRE USED</p>
+                                <p className="text-xs font-extrabold text-red-300">100/100 GENRE USED</p>
                                 <p className="text-[10px] text-red-400/80">Resets at midnight</p>
                             </>
                         ) : (
                             <>
-                                <p className="text-xs font-extrabold text-purple-300">{20 - genreClaimsToday} GENRE LEFT</p>
-                                <p className="text-[10px] text-purple-400/80">20 Claims Daily Cap</p>
+                                <p className="text-xs font-extrabold text-purple-300">{100 - genreClaimsToday} GENRE LEFT</p>
+                                <p className="text-[10px] text-purple-400/80">100 Claims Daily Cap</p>
                             </>
                         )}
                     </div>
@@ -388,7 +401,7 @@ export const PacksView: React.FC = () => {
                     ) : isSelectedGenrePack && isGenreLimitReached ? (
                         <div className="flex flex-col items-center text-center">
                             <PackageIcon className="w-20 h-20 text-gray-400 mb-2 opacity-60" />
-                            <span className="text-xl font-black text-white/90">20/20 GENRE USED</span>
+                            <span className="text-xl font-black text-white/90">100/100 GENRE USED</span>
                             <span className="mt-2 text-xs font-medium text-purple-300 bg-black/50 px-3 py-1 rounded-full border border-purple-500/40">
                                 Open Standard Unlimited!
                             </span>
