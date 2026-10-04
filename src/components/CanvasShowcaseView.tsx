@@ -114,11 +114,11 @@ export const CanvasShowcaseCard: React.FC<CanvasCardProps> = ({
       <div className="relative z-10 mt-auto p-2 pt-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col pointer-events-none">
         {isJailbroken ? (
           <h4 className="font-extrabold text-xs text-white truncate drop-shadow-md leading-tight">
-            ⚡ 1 of 1 • {song.title}
+            {song.title}
           </h4>
         ) : isMythic && isShiny ? (
           <h4 className="font-extrabold text-xs bg-gradient-to-r from-yellow-300 via-cyan-300 to-pink-300 bg-clip-text text-transparent truncate drop-shadow-md leading-tight">
-            💎 {song.title}
+            {song.title}
           </h4>
         ) : (
           <h4 className="font-bold text-xs text-white truncate drop-shadow-md leading-tight">{song.title}</h4>

@@ -338,9 +338,6 @@ const SongPreview: React.FC<{
                     )}
                 </div>
             </div>
-            <button onClick={onClose} className="absolute top-4 right-4 p-1.5 bg-black/50 rounded-full hover:bg-black/70 transition-colors z-20">
-                <XMarkIcon className="w-5 h-5 text-white" />
-            </button>
         </div>
         {isCreatingTrade && <CreateTradeModal song={collectedSong} onClose={() => setIsCreatingTrade(false)} />}
     </>
