@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { UserContext } from '../contexts/UserContext';
-import { TrophyIcon, CalendarDaysIcon, ClockIcon } from '../components/icons';
+import { TrophyIcon, CalendarDaysIcon, ClockIcon, SparklesIcon } from '../components/icons';
 import type { RecordLabel, EventReward, LabelEvent, User } from '../types';
 import { updateAllLeaderboards } from '../services/eventService';
 import { dataService } from '../services/dataService';
 import { ClanDetailsModal } from '../components/ClanDetailsModal';
+import { formatEventTheme } from '../utils/themeFormatter';
 
 const COOLDOWN_DURATION = 1 * 24 * 60 * 60 * 1000; // 1 day
 
@@ -142,6 +143,10 @@ const CurrentWarView: React.FC<{ contextLabel?: RecordLabel }> = ({ contextLabel
         return (
             <div>
                 <div className="text-center mb-8 p-6 bg-gray-800/50 rounded-lg border border-gray-700">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-400/10 text-yellow-400 border border-yellow-400/30 text-xs font-bold mb-3">
+                        <SparklesIcon className="w-3.5 h-3.5" />
+                        <span>Theme: {formatEventTheme(latestEvent.theme)}</span>
+                    </div>
                     <TrophyIcon className="w-12 h-12 text-yellow-400 mx-auto mb-2" />
                     <h2 className="text-3xl font-bold mb-2">{latestEvent.title}</h2>
                     <p className="text-gray-300 max-w-xl mx-auto mb-4">{latestEvent.description}</p>

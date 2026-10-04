@@ -428,15 +428,25 @@ class DataService {
 
     // FIX: Implement missing incrementWarScore method.
     async incrementWarScore(eventId: string, user: User, points: number): Promise<void> {
-        if (points === 0) return;
+        if (points <= 0) return;
         const eventRef = doc(db, 'events', eventId);
-        // Using dot notation with increment is atomic and efficient.
-        // It also sets the name/pfp if this is the user's first time scoring.
-        await updateDoc(eventRef, {
-            [`individualScores.${user.id}.score`]: increment(points),
-            [`individualScores.${user.id}.name`]: user.name,
-            [`individualScores.${user.id}.pfpUrl`]: user.pfpUrl
-        });
+        try {
+            await updateDoc(eventRef, {
+                [`individualScores.${user.id}.score`]: increment(points),
+                [`individualScores.${user.id}.name`]: user.name,
+                [`individualScores.${user.id}.pfpUrl`]: user.pfpUrl
+            });
+        } catch {
+            await setDoc(eventRef, {
+                individualScores: {
+                    [user.id]: {
+                        score: points,
+                        name: user.name,
+                        pfpUrl: user.pfpUrl
+                    }
+                }
+            }, { merge: true });
+        }
     }
 
     async logTrade(sellerId: string, buyerId: string) {

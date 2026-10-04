@@ -13,7 +13,7 @@ import { getAlbumTracks, getTrackDetails, searchArtists, getSongDetailsWithFallb
 import { DEFAULT_ALBUM_COVER, DEFAULT_VINYL_COVER, isPlaceholderCover } from '../utils/imageFallback';
 import { useNotification } from './NotificationContext';
 import type { HourlyEvent } from '../services/dailyEventService';
-import { manageEventCycle } from '../services/eventService';
+import { manageEventCycle, updateAllLeaderboards } from '../services/eventService';
 import { manageRaidCycle, attackRaidBoss as performRaidAttack } from '../services/raidService';
 import { GENRES } from '../services/topArtistsService';
 import { generateAndOpenPack } from '../services/packOpeningService';
@@ -653,6 +653,39 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
                 if (Object.keys(masteryUpdates).length > 0) {
                     updateCurrentUser(masteryUpdates).catch(err => console.warn("Failed to persist mastery:", err));
+                }
+
+                // Track and award Label War points for active war
+                if (currentUser.labelId) {
+                    const activeWarEvent = events.find((e) => e.isActive);
+                    if (activeWarEvent) {
+                        let totalPackWarPoints = 0;
+                        for (const item of newPack) {
+                            // Base 2 points per song pull for label engagement
+                            totalPackWarPoints += 2;
+
+                            if (activeWarEvent.theme === 'RARITY_RUSH') {
+                                if (item.song.rarity === Rarity.Rare) totalPackWarPoints += 5;
+                                else if (item.song.rarity === Rarity.Mythic) totalPackWarPoints += 10;
+                                else if (item.song.rarity === Rarity.Jailbroken) totalPackWarPoints += 20;
+                            } else if (activeWarEvent.theme === 'MYTHIC_MASTERS') {
+                                if (item.song.rarity === Rarity.Mythic) totalPackWarPoints += 100;
+                                else if (item.song.rarity === Rarity.Jailbroken) totalPackWarPoints += 250;
+                            } else if (activeWarEvent.theme === 'SHINY_SHOWCASE') {
+                                if (item.song.isShiny) {
+                                    totalPackWarPoints += item.song.rarity === Rarity.Mythic ? 50 : 10;
+                                }
+                            } else if (activeWarEvent.theme === 'FRESH_FACES') {
+                                if (!existingSongIds.has(item.song.id)) totalPackWarPoints += 5;
+                            }
+                        }
+
+                        if (totalPackWarPoints > 0) {
+                            dataService.incrementWarScore(activeWarEvent.id, currentUser, totalPackWarPoints)
+                                .then(() => updateAllLeaderboards(activeWarEvent))
+                                .catch((err) => console.error("Error updating war score:", err));
+                        }
+                    }
                 }
 
                 setCurrentUser((prev) => prev ? {

@@ -1,5 +1,6 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import type { CollectedSong } from '../types';
+import { formatEventTheme } from '../utils/themeFormatter';
 
 const getApiKey = (): string => {
   if (typeof process !== 'undefined') {
@@ -120,15 +121,16 @@ const THEME_DEFAULTS: Record<string, { title: string; description: string }> = {
 };
 
 export const generateEventDetails = async (theme: string): Promise<{ title: string; description: string }> => {
+  const formattedThemeName = formatEventTheme(theme);
   const fallback = THEME_DEFAULTS[theme] || {
-    title: `Weekly Challenge: ${theme.replace(/_/g, ' ')}`,
+    title: `${formattedThemeName} Challenge`,
     description: "A new weekly challenge has begun! Compete with other labels to prove your worth.",
   };
 
   if (!ai) return fallback;
 
   try {
-    const prompt = `Based on the theme "${theme}", generate a cool, music-themed event name and a two-sentence description for a week-long competition for Record Labels. The theme indicates how labels get points.
+    const prompt = `Based on the theme "${formattedThemeName}", generate a cool, music-themed event name and a two-sentence description for a week-long competition for Record Labels. The theme indicates how labels get points.
     - MYTHIC_MASTERS: collecting Mythic songs (100 pts) and achieving max artist mastery (50 pts).
     - SHINY_SHOWCASE: collecting Shiny songs.
     - VINYL_VANGUARDS: crafting Golden Vinyls.
@@ -136,6 +138,7 @@ export const generateEventDetails = async (theme: string): Promise<{ title: stri
     - MASTERY_MARATHON: leveling up artist mastery.
     - RARITY_RUSH: collecting Rare or Mythic songs.
     - FRESH_FACES: discovering new artists.
+    Do NOT include underscores or raw theme codes like "rarity_rush" in the title.
     Return a JSON object with "title" and "description" keys.`;
 
     const response = await ai.models.generateContent({
