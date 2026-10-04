@@ -9,7 +9,7 @@ const artistDiscographyCache = new Map<string, { songs: Song[], timestamp: numbe
 const albumTracksCache = new Map<string, { tracks: Song[], timestamp: number }>();
 const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 
-const jsonp = (baseUrl: string, callbackName: string = `jsonp_${Date.now()}_${Math.ceil(Math.random() * 100000)}`, timeoutMs: number = 4000): Promise<any> => {
+const jsonp = (baseUrl: string, callbackName: string = `jsonp_${Date.now()}_${Math.ceil(Math.random() * 100000)}`, timeoutMs: number = 3000): Promise<any> => {
     return new Promise((resolve, reject) => {
         let isSettled = false;
         const script = document.createElement('script');
@@ -41,11 +41,11 @@ const jsonp = (baseUrl: string, callbackName: string = `jsonp_${Date.now()}_${Ma
         };
         
         script.src = url;
-        script.onerror = (err) => {
+        script.onerror = () => {
             if (!isSettled) {
                 clearTimeout(timer);
                 cleanup();
-                reject(err);
+                reject(new Error("JSONP script load error"));
             }
         };
         
@@ -105,8 +105,8 @@ export const getTrackDetails = async (trackId: string): Promise<Song | null> => 
         if (data && !data.error && data.id) {
             return processSingleDeezerTrack(data);
         }
-    } catch (error) {
-        console.error(`Error fetching details for track ${trackId}:`, error);
+    } catch {
+        // Silently return null so fallback searches proceed seamlessly
     }
     return null;
 };
@@ -278,8 +278,8 @@ export const getSongDetailsWithFallback = async (song: { id?: string; title: str
                     }
                 }
             }
-        } catch (err) {
-            console.error(`Error searching Deezer for fallback: ${query}`, err);
+        } catch {
+            // Silently fall through to iTunes API search
         }
     }
 
