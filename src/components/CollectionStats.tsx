@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import type { User, CollectedSong } from '../types';
 import { Rarity } from '../types';
 import { getRarityStyles } from '../utils/rarity';
+import { DEFAULT_ALBUM_COVER, handleImageError } from '../utils/imageFallback';
 
 interface StatCardProps {
   title: string;
@@ -24,7 +25,12 @@ const RarestSongCard: React.FC<{ song: CollectedSong }> = ({ song }) => {
     const rarityStyles = getRarityStyles(song.song.rarity);
     return (
         <div className={`p-2 rounded-lg ${rarityStyles.bgColor} border ${rarityStyles.borderColor} w-full`}>
-            <img src={song.song.albumArtUrl} crossOrigin="anonymous" alt={song.song.album.title} className="w-full aspect-square object-cover rounded-md mb-2"/>
+            <img 
+                src={song.song.albumArtUrl || DEFAULT_ALBUM_COVER} 
+                onError={handleImageError} 
+                alt={song.song.album.title} 
+                className="w-full aspect-square object-cover rounded-md mb-2"
+            />
             <p className="font-semibold text-white text-sm truncate">{song.song.title}</p>
             <p className="text-xs text-gray-400 truncate">{song.song.artist.name}</p>
         </div>

@@ -51,19 +51,39 @@ const searchArtistId = async (artistName: string): Promise<string | null> => {
     return data?.data?.[0]?.id || null;
 };
 
-const getArtistTopTracks = async (artistId: string): Promise<any[]> => {
-    const data = await deezerApiFetch(`artist/${artistId}/top?limit=50`);
-    return data?.data || [];
+const getArtistTopTracks = async (artistId: string, artistName?: string): Promise<any[]> => {
+    try {
+        const data = await deezerApiFetch(`artist/${artistId}/top?limit=50`);
+        if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+            return data.data;
+        }
+    } catch {}
+
+    // Fallback search when artist /top is empty (e.g. Ken Carson, underground artists)
+    if (artistName) {
+        try {
+            const searchData = await deezerApiFetch(`search?q=${encodeURIComponent(artistName)}&limit=50`);
+            if (searchData?.data && Array.isArray(searchData.data) && searchData.data.length > 0) {
+                return searchData.data;
+            }
+        } catch {}
+    }
+    return [];
 };
 
 const processSingleDeezerTrack = (item: any): Song | null => {
     if (item && item.id && item.preview && item.artist && item.album) {
+        const cover = item.album.cover_xl || 
+                      item.album.cover_big || 
+                      item.album.cover_medium || 
+                      item.album.cover || 
+                      (item.md5_image ? `https://e-cdns-images.dzcdn.net/images/cover/${item.md5_image}/500x500-000000-80-0-0.jpg` : '');
         return {
             id: String(item.id),
             title: item.title_short || item.title || 'Unknown Title',
             artist: { id: String(item.artist.id), name: item.artist.name },
             album: { id: String(item.album.id), title: item.album.title },
-            albumArtUrl: item.album.cover_xl || item.album.cover_big || item.album.cover_medium,
+            albumArtUrl: cover,
             previewUrl: item.preview,
             rarity: Rarity.Common, // Will be overridden
             isShiny: false, // Will be overridden
@@ -234,7 +254,7 @@ app.post('/api/open-pack', authMiddleware, async (req: AuthenticatedRequest, res
                 const artistName = GENRE_ARTISTS[genre][Math.floor(Math.random() * GENRE_ARTISTS[genre].length)];
                 const artistId = await searchArtistId(artistName);
                 if (artistId) {
-                    const tracks = await getArtistTopTracks(artistId);
+                    const tracks = await getArtistTopTracks(artistId, artistName);
                     const potentialSongs = tracks.map(processSingleDeezerTrack).filter((s): s is Song => s !== null && !existingSongIds.has(s.id));
                     if (potentialSongs.length > 0) {
                         foundSong = potentialSongs[Math.floor(Math.random() * potentialSongs.length)];

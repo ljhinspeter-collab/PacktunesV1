@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type { Mixtape, CollectedSong, Song } from '../types';
-import { getTrackDetails } from '../services/musicService';
+import { getSongDetailsWithFallback } from '../services/musicService';
 import { PlayIcon, PauseIcon } from './icons';
+import { DEFAULT_ALBUM_COVER, handleImageError } from '../utils/imageFallback';
 
 const SkipNextIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24" fill="currentColor" className={className || "w-6 h-6"}>
@@ -48,11 +49,20 @@ export const Jukebox: React.FC<{ mixtape: Mixtape; collection: CollectedSong[]; 
         if (!currentTrack) return;
         let isMounted = true;
         setIsLoadingTrack(true);
-        getTrackDetails(currentTrack.song.id).then(freshSong => {
-            if (isMounted && freshSong) {
-                setLivePreviewUrl(freshSong.previewUrl);
-            }
+        getSongDetailsWithFallback(currentTrack.song).then(freshSong => {
             if (isMounted) {
+                if (freshSong && freshSong.previewUrl) {
+                    setLivePreviewUrl(freshSong.previewUrl);
+                } else if (currentTrack.song.previewUrl) {
+                    setLivePreviewUrl(currentTrack.song.previewUrl);
+                }
+                setIsLoadingTrack(false);
+            }
+        }).catch(() => {
+            if (isMounted) {
+                if (currentTrack.song.previewUrl) {
+                    setLivePreviewUrl(currentTrack.song.previewUrl);
+                }
                 setIsLoadingTrack(false);
             }
         });
@@ -103,8 +113,9 @@ export const Jukebox: React.FC<{ mixtape: Mixtape; collection: CollectedSong[]; 
             <div className="relative w-56 h-56 mx-auto mb-6">
                 <div className="absolute inset-0 bg-black rounded-full shadow-lg"></div>
                 <img 
-                    src={currentTrack.song.albumArtUrl} 
+                    src={currentTrack.song.albumArtUrl || DEFAULT_ALBUM_COVER} 
                     alt={currentTrack.song.album.title}
+                    onError={(e) => handleImageError(e, DEFAULT_ALBUM_COVER)}
                     className={`absolute inset-4 w-48 h-48 rounded-full object-cover transition-transform duration-1000 ${isPlaying ? 'animate-[spin_10s_linear_infinite]' : ''}`}
                     style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
                 />

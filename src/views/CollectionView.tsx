@@ -18,11 +18,13 @@ import { AccountSettingsModal } from '../components/AccountSettingsModal';
 import { challenges } from '../services/challengeService';
 import { BadgeIcon } from '../components/Badge';
 import { ProfileFrame } from '../components/ProfileFrame';
-import { getTrackDetails } from '../services/musicService';
+import { getTrackDetails, getSongDetailsWithFallback, fetchAlbumArtwork } from '../services/musicService';
 import { CosmeticEditorModal } from '../components/CosmeticEditorModal';
 import { ArtistBadgeIcon } from '../components/ArtistBadgeIcon';
 import { SongListItem } from '../components/SongListItem';
 import { SongCard } from '../components/SongCard';
+import { CanvasShowcaseView } from '../components/CanvasShowcaseView';
+import { DEFAULT_VINYL_COVER, DEFAULT_ALBUM_COVER, handleImageError, isPlaceholderCover } from '../utils/imageFallback';
 
 const ShowcaseItem: React.FC<{
     title: string;
@@ -43,7 +45,12 @@ const ShowcaseItem: React.FC<{
              return (
                 <button onClick={onClick} className="group w-full h-full relative">
                     <div className="absolute inset-0 bg-black rounded-full transition-transform duration-300 group-hover:scale-105"></div>
-                    <img src={item.albumArtUrl} crossOrigin="anonymous" alt={item.albumName} className="absolute inset-1 w-[calc(100%-0.5rem)] h-[calc(100%-0.5rem)] rounded-full object-cover" />
+                    <img 
+                        src={!isPlaceholderCover(item.albumArtUrl) ? item.albumArtUrl : DEFAULT_VINYL_COVER} 
+                        onError={(e) => handleImageError(e, DEFAULT_VINYL_COVER)}
+                        alt={item.albumName} 
+                        className="absolute inset-1 w-[calc(100%-0.5rem)] h-[calc(100%-0.5rem)] rounded-full object-cover" 
+                    />
                 </button>
             )
         } else { // It's a CollectedSong
@@ -60,7 +67,12 @@ const ShowcaseItem: React.FC<{
             }
              return (
                 <button onClick={onClick} className={`relative w-full h-full rounded-md overflow-hidden group ${compactBackgroundClasses}`}>
-                    <img src={item.song.albumArtUrl} crossOrigin="anonymous" alt={item.song.album.title} className="w-full h-full object-cover" />
+                    <img 
+                        src={!isPlaceholderCover(item.song.albumArtUrl) ? item.song.albumArtUrl : DEFAULT_ALBUM_COVER} 
+                        onError={handleImageError}
+                        alt={item.song.album.title} 
+                        className="w-full h-full object-cover" 
+                    />
                     {!item.isPrestige && <div className={`absolute inset-x-0 bottom-0 h-0.5 ${rarityStyles.borderColor.replace('border-', 'bg-')}`}></div>}
                 </button>
             )
@@ -133,24 +145,146 @@ const VinylCard: React.FC<{
         pinTitle = "Pin to showcase";
     }
 
+    const artistName = vinyl.artistName || vinyl.tracks?.[0]?.artist?.name || '';
+    const [coverUrl, setCoverUrl] = useState<string>(
+        vinyl.albumArtUrl && !isPlaceholderCover(vinyl.albumArtUrl)
+            ? vinyl.albumArtUrl
+            : ''
+    );
+
+    useEffect(() => {
+        let isMounted = true;
+        const needsCover = !coverUrl || isPlaceholderCover(coverUrl);
+        if (needsCover && (artistName || vinyl.albumName)) {
+            fetchAlbumArtwork(artistName, vinyl.albumName).then(art => {
+                if (isMounted && art && !isPlaceholderCover(art)) {
+                    setCoverUrl(art);
+                    vinyl.albumArtUrl = art;
+                }
+            });
+        }
+        return () => { isMounted = false; };
+    }, [artistName, vinyl.albumName, coverUrl]);
+
     return (
-        <div className="flex flex-col items-center w-32">
-            <div className="relative w-32 h-32 group">
-                <button onClick={onClick} className="w-full h-full">
-                    <div className="absolute inset-0 bg-black rounded-full transition-transform duration-300 group-hover:scale-105"></div>
-                    <img src={vinyl.albumArtUrl || '/default-album.png'} alt={vinyl.albumName} className="absolute inset-2 w-28 h-28 rounded-full object-cover" />
+        <div className="flex flex-col items-center w-36 p-2 rounded-xl bg-gray-900/60 border border-yellow-500/20 hover:border-yellow-500/50 transition-all shadow-md group">
+            <div className="relative w-28 h-28">
+                <button onClick={onClick} className="w-full h-full relative cursor-pointer group-hover:scale-105 transition-transform duration-300">
+                    <div className="absolute inset-0 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-700 rounded-full shadow-lg p-0.5">
+                        <div className="w-full h-full bg-black rounded-full flex items-center justify-center p-1.5">
+                            <img 
+                                src={coverUrl && !isPlaceholderCover(coverUrl) ? coverUrl : (!isPlaceholderCover(vinyl.albumArtUrl) ? vinyl.albumArtUrl : DEFAULT_VINYL_COVER)} 
+                                alt={vinyl.albumName} 
+                                onError={(e) => handleImageError(e, DEFAULT_VINYL_COVER)}
+                                className="w-full h-full rounded-full object-cover shadow-inner" 
+                            />
+                        </div>
+                    </div>
                 </button>
                 {canPin && (
                     <button 
                         onClick={onPin} 
                         title={pinTitle}
                         disabled={pinDisabled && !isPinned}
-                        className={`absolute top-1 right-1 p-1.5 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isPinned ? 'bg-indigo-500 text-white' : 'bg-black/60 text-gray-300 hover:text-white'}`}>
-                        <StarIcon className="w-4 h-4" />
+                        className={`absolute -top-1 -right-1 p-1.5 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md z-10 ${isPinned ? 'bg-amber-500 text-black font-bold' : 'bg-black/80 text-gray-300 hover:text-white'}`}>
+                        <StarIcon className="w-3.5 h-3.5" />
                     </button>
                 )}
             </div>
-            <p className="text-xs text-center mt-2 font-semibold truncate w-full">{vinyl.albumName}</p>
+            <p className="text-xs text-center mt-2 font-semibold text-white truncate w-full" title={vinyl.albumName}>{vinyl.albumName}</p>
+            {artistName && <p className="text-[11px] text-center text-amber-400/80 truncate w-full" title={artistName}>{artistName}</p>}
+        </div>
+    );
+};
+
+const VinylShelfView: React.FC<{
+    vinyls: Vinyl[];
+    onPlay: (vinyl: Vinyl) => void;
+    onPin: (albumId: string) => void;
+    proudestVinylIds: string[];
+    canPin: boolean;
+}> = ({ vinyls, onPlay, onPin, proudestVinylIds, canPin }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [displayCount, setDisplayCount] = useState(24);
+
+    const filteredVinyls = useMemo(() => {
+        if (!searchTerm.trim()) return vinyls;
+        const q = searchTerm.toLowerCase().trim();
+        return vinyls.filter(v => 
+            v.albumName.toLowerCase().includes(q) || 
+            (v.artistName && v.artistName.toLowerCase().includes(q)) ||
+            (v.tracks && v.tracks.some(t => t.title.toLowerCase().includes(q) || t.artist?.name?.toLowerCase().includes(q)))
+        );
+    }, [vinyls, searchTerm]);
+
+    const visibleVinyls = useMemo(() => {
+        return filteredVinyls.slice(0, displayCount);
+    }, [filteredVinyls, displayCount]);
+
+    if (!vinyls || vinyls.length === 0) {
+        return (
+            <div className="text-center text-gray-400 p-8 border-2 border-dashed border-gray-600 rounded-xl bg-gray-900/40 max-w-lg mx-auto">
+                <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center p-0.5">
+                    <div className="w-full h-full bg-black rounded-full flex items-center justify-center">
+                        <StarIcon className="w-8 h-8 text-yellow-400" />
+                    </div>
+                </div>
+                <p className="font-bold text-lg text-white">Your Golden Vinyl shelf is empty.</p>
+                <p className="text-sm mt-2 text-gray-300">
+                    Collect the <span className="font-bold text-cyan-300">SHINY</span> version of every song from an album to earn a Golden Vinyl and unlock a special player!
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-800/60 p-3 rounded-xl border border-gray-700">
+                <div className="text-sm text-gray-300 font-medium">
+                    Total Golden Vinyls: <span className="font-bold text-amber-400">{vinyls.length}</span>
+                    {searchTerm && ` (${filteredVinyls.length} match)`}
+                </div>
+                <div className="w-full sm:w-64">
+                    <input
+                        type="text"
+                        placeholder="Search shelf by album or artist..."
+                        value={searchTerm}
+                        onChange={e => {
+                            setSearchTerm(e.target.value);
+                            setDisplayCount(24);
+                        }}
+                        className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500"
+                    />
+                </div>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-4">
+                {visibleVinyls.map(vinyl => {
+                    const isPinned = (proudestVinylIds || []).includes(vinyl.albumId);
+                    const pinDisabled = !isPinned && (proudestVinylIds || []).length >= 3;
+                    return (
+                        <VinylCard
+                            key={vinyl.albumId}
+                            vinyl={vinyl}
+                            onClick={() => onPlay(vinyl)}
+                            isPinned={isPinned}
+                            onPin={() => onPin(vinyl.albumId)}
+                            canPin={canPin}
+                            pinDisabled={pinDisabled}
+                        />
+                    );
+                })}
+            </div>
+
+            {displayCount < filteredVinyls.length && (
+                <div className="text-center pt-4">
+                    <button
+                        onClick={() => setDisplayCount(prev => prev + 24)}
+                        className="px-6 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-black font-bold rounded-lg shadow-md transition-all">
+                        Load More ({filteredVinyls.length - displayCount} remaining)
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
@@ -181,7 +315,7 @@ const TitleDisplay: React.FC<{ title: Title; className?: string }> = ({ title, c
 };
 
 
-type ProfileViewTab = 'collection' | 'playlist' | 'vinyls' | 'stats' | 'mastery' | 'discover' | 'radio' | 'boosts';
+type ProfileViewTab = 'collection' | 'showcase' | 'playlist' | 'vinyls' | 'stats' | 'mastery' | 'discover' | 'radio' | 'boosts';
 
 export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
   const [query, setQuery] = useState('');
@@ -200,9 +334,9 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
   const [playingVinyl, setPlayingVinyl] = useState<Vinyl | null>(null);
   const [playingRadio, setPlayingRadio] = useState<Mixtape | null>(null);
   const userContext = useContext(UserContext);
-  const { currentUser, currentUserCollection, updateCurrentUser, updateShowcase } = userContext!;
+  const { currentUser, currentUserCollection, viewingUserCollection, updateCurrentUser, updateShowcase } = userContext!;
   const isCurrentUser = currentUser?.id === user.id;
-  const collection = isCurrentUser ? currentUserCollection : []; // Placeholder for other user's collections if needed later
+  const collection = isCurrentUser ? currentUserCollection : viewingUserCollection;
   
   const stageAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isStagePlaying, setIsStagePlaying] = useState(false);
@@ -218,15 +352,18 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
     if (user.activeStageTheme) {
         const songToPlay = collection.find(cs => cs.id === user.activeStageTheme!.songId);
         if (songToPlay) {
-            getTrackDetails(songToPlay.song.id).then(freshSong => {
-                if (isMounted && freshSong?.previewUrl) {
-                    const newAudio = new Audio(freshSong.previewUrl);
-                    newAudio.loop = true;
-                    newAudio.volume = 0.3;
-                    stageAudioRef.current = newAudio;
-                    
-                    newAudio.onplay = () => setIsStagePlaying(true);
-                    newAudio.onpause = () => setIsStagePlaying(false);
+            getSongDetailsWithFallback(songToPlay.song).then(freshSong => {
+                if (isMounted) {
+                    const previewToPlay = freshSong?.previewUrl || songToPlay.song.previewUrl;
+                    if (previewToPlay) {
+                        const newAudio = new Audio(previewToPlay);
+                        newAudio.loop = true;
+                        newAudio.volume = 0.3;
+                        stageAudioRef.current = newAudio;
+                        
+                        newAudio.onplay = () => setIsStagePlaying(true);
+                        newAudio.onpause = () => setIsStagePlaying(false);
+                    }
                 }
             });
         }
@@ -395,7 +532,11 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
    const toggleStageAudio = () => {
         const audio = stageAudioRef.current;
         if (audio) {
-            audio.paused ? audio.play() : audio.pause();
+            if (audio.paused) {
+                audio.play().catch(() => setIsStagePlaying(false));
+            } else {
+                audio.pause();
+            }
         }
     };
 
@@ -479,8 +620,8 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
               <button onClick={toggleStageAudio} className="relative w-24 h-24 group">
                   <div className="absolute inset-0 bg-black rounded-full shadow-lg"></div>
                   <img 
-                      src={user.activeStageTheme.albumArtUrl} 
-                      crossOrigin="anonymous" 
+                      src={user.activeStageTheme.albumArtUrl || DEFAULT_ALBUM_COVER} 
+                      onError={handleImageError}
                       alt="Profile Song"
                       className={`absolute inset-2 w-20 h-20 rounded-full object-cover transition-transform duration-1000 ${isStagePlaying ? 'animate-[spin_10s_linear_infinite]' : ''}`}
                       style={{ animationPlayState: isStagePlaying ? 'running' : 'paused' }}
@@ -509,7 +650,12 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
                                     {vinyl ? (
                                         <button onClick={() => setPlayingVinyl(vinyl)} className="group w-full h-full relative">
                                             <div className="absolute inset-0 bg-black rounded-full transition-transform duration-300 group-hover:scale-105"></div>
-                                            <img src={vinyl.albumArtUrl} crossOrigin="anonymous" alt={vinyl.albumName} className="absolute inset-1 w-[calc(100%-0.5rem)] h-[calc(100%-0.5rem)] rounded-full object-cover" />
+                                            <img 
+                                                src={vinyl.albumArtUrl || DEFAULT_VINYL_COVER} 
+                                                onError={(e) => handleImageError(e, DEFAULT_VINYL_COVER)}
+                                                alt={vinyl.albumName} 
+                                                className="absolute inset-1 w-[calc(100%-0.5rem)] h-[calc(100%-0.5rem)] rounded-full object-cover" 
+                                            />
                                         </button>
                                     ) : (
                                         <div className="w-full h-full border-2 border-dashed border-gray-600 rounded-full"></div>
@@ -530,6 +676,13 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
             className={`flex-shrink-0 px-4 py-3 font-semibold text-sm transition-colors ${activeTab === 'collection' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
         >
             Collection
+        </button>
+        <button 
+            onClick={() => setActiveTab('showcase')}
+            className={`flex-shrink-0 px-4 py-3 font-semibold text-sm transition-colors flex items-center gap-1.5 ${activeTab === 'showcase' ? 'border-b-2 border-emerald-400 text-white' : 'text-gray-400 hover:text-white'}`}
+        >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            Showcase
         </button>
         {isCurrentUser && <button 
             onClick={() => setActiveTab('playlist')}
@@ -661,36 +814,22 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
         </>
       )}
 
+      {activeTab === 'showcase' && (
+        <CanvasShowcaseView 
+            user={user} 
+            collection={collection} 
+            onSongClick={handleSongClick} 
+        />
+      )}
       {activeTab === 'playlist' && isCurrentUser && <PlaylistEditorView />}
       {activeTab === 'vinyls' && (
-           <div>
-                {user.vinyls && user.vinyls.length > 0 ? (
-                    <div className="flex flex-wrap justify-center gap-4">
-                        {user.vinyls.map(vinyl => {
-                             const isPinned = (user.showcase?.proudestVinylIds || []).includes(vinyl.albumId);
-                             const pinDisabled = !isPinned && (user.showcase?.proudestVinylIds || []).length >= 3;
-                            return (
-                                <VinylCard
-                                    key={vinyl.albumId}
-                                    vinyl={vinyl}
-                                    onClick={() => setPlayingVinyl(vinyl)}
-                                    isPinned={isPinned}
-                                    onPin={() => handlePinVinyl(vinyl.albumId)}
-                                    canPin={isCurrentUser}
-                                    pinDisabled={pinDisabled}
-                                />
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div className="text-center text-gray-400 p-6 border-2 border-dashed border-gray-600 rounded-lg">
-                        <p className="font-semibold text-white">Your Golden Vinyl shelf is empty.</p>
-                        <p className="text-sm mt-2 max-w-sm mx-auto">
-                            Collect the <span className="font-bold text-cyan-300">SHINY</span> version of every song from an album to earn a Golden Vinyl and unlock a special player!
-                        </p>
-                    </div>
-                )}
-            </div>
+           <VinylShelfView
+               vinyls={user.vinyls || []}
+               onPlay={(vinyl) => setPlayingVinyl(vinyl)}
+               onPin={(albumId) => handlePinVinyl(albumId)}
+               proudestVinylIds={user.showcase?.proudestVinylIds || []}
+               canPin={isCurrentUser}
+           />
       )}
       
       {activeTab === 'boosts' && isCurrentUser && <BoostsView />}
@@ -754,7 +893,12 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
 const PlaylistSongItemDetails: React.FC<{song: CollectedSong}> = ({ song }) => {
     return (
         <div className="flex items-center gap-3">
-            <img src={song.song.albumArtUrl} alt={song.song.album.title} className="w-12 h-12 rounded-sm object-cover flex-shrink-0" />
+            <img 
+                src={!isPlaceholderCover(song.song.albumArtUrl) ? song.song.albumArtUrl : DEFAULT_ALBUM_COVER} 
+                alt={song.song.album.title} 
+                onError={handleImageError}
+                className="w-12 h-12 rounded-sm object-cover flex-shrink-0" 
+            />
             <div className="flex-grow truncate">
                 <p className="font-semibold text-white truncate text-sm">{song.song.title}</p>
                 <p className="text-xs text-gray-400 truncate">{song.song.artist.name}</p>
@@ -1181,7 +1325,12 @@ const ShinyPolisherModal: React.FC<{
                                 onClick={() => setSelectedSongId(song.id)} 
                                 className={`w-full p-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-3 border ${selectedSongId === song.id ? 'bg-indigo-900/40 border-yellow-400 ring-2 ring-yellow-400/50' : 'bg-gray-800/80 border-gray-700 hover:bg-gray-700/80'}`}
                              >
-                                <img src={song.song.albumArtUrl} alt={song.song.album.title} className="w-12 h-12 rounded object-cover flex-shrink-0" />
+                                <img 
+                                    src={!isPlaceholderCover(song.song.albumArtUrl) ? song.song.albumArtUrl : DEFAULT_ALBUM_COVER} 
+                                    alt={song.song.album.title} 
+                                    onError={handleImageError}
+                                    className="w-12 h-12 rounded object-cover flex-shrink-0" 
+                                />
                                 <div className="flex-grow min-w-0">
                                     <p className="font-semibold text-white truncate text-sm">{song.song.title}</p>
                                     <p className="text-xs text-gray-400 truncate">{song.song.artist.name}</p>

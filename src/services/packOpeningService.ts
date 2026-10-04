@@ -2,6 +2,8 @@ import { Song, CollectedSong, Rarity, Artist } from '../types';
 import { GENRE_ARTISTS, Genre } from './topArtistsService';
 import { FALLBACK_GENRE_SONGS } from '../data/fallbackSongs';
 import { dataService } from './dataService';
+import { fetchArtworkFromAppleMusic, fetchAlbumArtwork } from './musicService';
+import { DEFAULT_ALBUM_COVER, isPlaceholderCover } from '../utils/imageFallback';
 
 const jsonp = (baseUrl: string): Promise<any> => {
   return new Promise((resolve) => {
@@ -55,20 +57,21 @@ const assignSongAttributes = (song: Song, ownerId: string): CollectedSong => {
   };
 
   const rarityRoll = Math.random();
-  if (rarityRoll < 0.001) {
+  // ~1 in 100 packs (~0.167% per card = ~1.0% chance per 6-card pack)
+  if (rarityRoll < 0.00167) {
     collectedSong.song.rarity = Rarity.Mythic;
-    collectedSong.serialNumber = Math.floor(Math.random() * 50) + 1;
+    collectedSong.serialNumber = Math.floor(Math.random() * 10) + 1;
     collectedSong.song.baseRarity = Rarity.Common;
-  } else if (rarityRoll < 0.05) {
+  } else if (rarityRoll < 0.06) {
     collectedSong.song.rarity = Rarity.Rare;
-  } else if (rarityRoll < 0.25) {
+  } else if (rarityRoll < 0.28) {
     collectedSong.song.rarity = Rarity.Uncommon;
   } else {
     collectedSong.song.rarity = Rarity.Common;
   }
 
-  // 1% Shiny chance
-  collectedSong.song.isShiny = Math.random() < 0.01;
+  // 2% Shiny chance
+  collectedSong.song.isShiny = Math.random() < 0.02;
 
   return collectedSong;
 };
@@ -154,7 +157,7 @@ export const generateAndOpenPack = async (
                   id: String(pick.album.id),
                   title: pick.album.title,
                 },
-                albumArtUrl: pick.album.cover_xl || pick.album.cover_big || pick.album.cover_medium,
+                albumArtUrl: pick.album.cover_xl || pick.album.cover_big || pick.album.cover_medium || pick.album.cover || (pick.md5_image ? `https://e-cdns-images.dzcdn.net/images/cover/${pick.md5_image}/500x500-000000-80-0-0.jpg` : ''),
                 previewUrl: pick.preview,
                 releaseDate: pick.release_date || '2023-01-01',
                 rarity: Rarity.Common,
@@ -198,7 +201,7 @@ export const generateAndOpenPack = async (
                   id: String(pick.album.id),
                   title: pick.album.title,
                 },
-                albumArtUrl: pick.album.cover_xl || pick.album.cover_big || pick.album.cover_medium,
+                albumArtUrl: pick.album.cover_xl || pick.album.cover_big || pick.album.cover_medium || pick.album.cover || (pick.md5_image ? `https://e-cdns-images.dzcdn.net/images/cover/${pick.md5_image}/500x500-000000-80-0-0.jpg` : ''),
                 previewUrl: pick.preview,
                 releaseDate: pick.release_date || '2023-01-01',
                 rarity: Rarity.Common,
@@ -230,6 +233,16 @@ export const generateAndOpenPack = async (
 
     packTrackIds.add(String(chosenRawSong.id));
     existingSongIds.add(String(chosenRawSong.id));
+
+    // Ensure cover art exists
+    if (isPlaceholderCover(chosenRawSong.albumArtUrl)) {
+      try {
+        const cover = await fetchAlbumArtwork(chosenRawSong.artist.name, chosenRawSong.album?.title || chosenRawSong.title);
+        if (cover && !isPlaceholderCover(cover)) {
+          chosenRawSong.albumArtUrl = cover;
+        }
+      } catch {}
+    }
 
     const collectedSong = assignSongAttributes(chosenRawSong, userId);
     newPack.push(collectedSong);

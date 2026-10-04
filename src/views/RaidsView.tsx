@@ -127,7 +127,7 @@ export const RaidsView: React.FC = () => {
             <div className="flex flex-col md:flex-row gap-6">
                 <div className="flex-shrink-0 md:w-1/3 flex flex-col items-center p-4 bg-gray-800/50 rounded-lg border border-gray-700">
                     <h2 className="text-3xl font-bold text-center mb-4">{activeRaid.bossName}</h2>
-                    <img src={activeRaid.bossArtUrl} crossOrigin="anonymous" alt={activeRaid.bossName} className="w-48 h-48 rounded-lg object-cover mb-4" />
+                    <img src={activeRaid.bossArtUrl} alt={activeRaid.bossName} className="w-48 h-48 rounded-lg object-cover mb-4" />
                     <p className="text-sm text-gray-400 text-center mb-6">{activeRaid.description}</p>
                     <div className="w-full">
                         <div className="flex justify-between text-sm font-mono mb-1">

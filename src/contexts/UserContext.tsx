@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useCallback, ReactNode, useMemo, useRef } from 'react';
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as firebaseSignOut, User as FirebaseUser } from 'firebase/auth';
-import { collection, onSnapshot, Unsubscribe, doc, deleteField, query, where, orderBy, limit, writeBatch, runTransaction, increment, arrayRemove, arrayUnion, addDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, Unsubscribe, doc, deleteField, query, where, orderBy, limit, writeBatch, runTransaction, increment, arrayRemove, arrayUnion, addDoc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 import type { User, Song, CollectedSong, Artist, TradePost, TradeOffer, Badge, Vinyl, Mixtape, ArtistMastery, Showcase, RecordLabel, LabelEvent, LabelRaid, SongBattle, GlobalActivity, Chat, Message, LabelChatMessage, UserContextType, EventReward, RoomLayout, GrooveGuardian, LabyrinthRoom, LabyrinthRequirement, Title } from '../types';
 import { auth, db } from '../services/firebase';
@@ -9,7 +9,8 @@ import { generateBattleReport } from '../services/aiService';
 import { challenges } from '../services/challengeService';
 import { Rarity } from '../types';
 // FIX: Import searchSongs which is now correctly exported from musicService
-import { getAlbumTracks, getTrackDetails, searchArtists } from '../services/musicService';
+import { getAlbumTracks, getTrackDetails, searchArtists, getSongDetailsWithFallback, fetchAlbumArtwork } from '../services/musicService';
+import { DEFAULT_ALBUM_COVER, DEFAULT_VINYL_COVER, isPlaceholderCover } from '../utils/imageFallback';
 import { useNotification } from './NotificationContext';
 import type { HourlyEvent } from '../services/dailyEventService';
 import { manageEventCycle } from '../services/eventService';
@@ -22,18 +23,18 @@ import { isRoomUnlocked, validateContribution } from '../services/labyrinthServi
 
 
 export const MASTERY_LEVELS = [
-    { level: 1, name: "Follower", xpThreshold: 100 },
-    { level: 2, name: "Apprentice", xpThreshold: 500 },
-    { level: 3, name: "Adept", xpThreshold: 2000 },
-    { level: 4, name: "Master", xpThreshold: 8000 },
+    { level: 1, name: "Follower", xpThreshold: 50 },
+    { level: 2, name: "Apprentice", xpThreshold: 200 },
+    { level: 3, name: "Adept", xpThreshold: 600 },
+    { level: 4, name: "Master", xpThreshold: 1800 },
 ];
 
 const XP_PER_RARITY = {
-    [Rarity.Common]: 8,
-    [Rarity.Uncommon]: 15,
-    [Rarity.Rare]: 30,
+    [Rarity.Common]: 10,
+    [Rarity.Uncommon]: 20,
+    [Rarity.Rare]: 40,
     [Rarity.Mythic]: 250,
-    [Rarity.Jailbroken]: 0,
+    [Rarity.Jailbroken]: 500,
 };
 
 export const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -104,6 +105,45 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 if (userDoc.exists()) {
                     const userData = userDoc.data() as User;
                     setCurrentUser(userData);
+
+                    // Auto-repair any vinyls with missing cover art
+                    if (Array.isArray(userData.vinyls) && userData.vinyls.length > 0) {
+                        const vinylsNeedingRepair = userData.vinyls.filter(v => isPlaceholderCover(v.albumArtUrl));
+                        if (vinylsNeedingRepair.length > 0) {
+                            setTimeout(async () => {
+                                let updated = false;
+                                const repairedVinyls = await Promise.all(userData.vinyls.map(async v => {
+                                    if (isPlaceholderCover(v.albumArtUrl)) {
+                                        const artist = v.artistName || v.tracks?.[0]?.artist?.name || '';
+                                        const album = v.albumName || v.tracks?.[0]?.album?.title || '';
+                                        let cover = await fetchAlbumArtwork(artist, album);
+                                        if ((!cover || isPlaceholderCover(cover)) && v.tracks && v.tracks.length > 0) {
+                                            for (const track of v.tracks) {
+                                                if (track && track.albumArtUrl && !isPlaceholderCover(track.albumArtUrl)) {
+                                                    cover = track.albumArtUrl;
+                                                    break;
+                                                }
+                                                const trackFresh = await getSongDetailsWithFallback(track);
+                                                if (trackFresh && trackFresh.albumArtUrl && !isPlaceholderCover(trackFresh.albumArtUrl)) {
+                                                    cover = trackFresh.albumArtUrl;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        if (cover && !isPlaceholderCover(cover)) {
+                                            updated = true;
+                                            return { ...v, albumArtUrl: cover };
+                                        }
+                                    }
+                                    return v;
+                                }));
+                                if (updated) {
+                                    setCurrentUser(prev => prev ? { ...prev, vinyls: repairedVinyls } : prev);
+                                    updateDoc(doc(db, 'users', userId), { vinyls: repairedVinyls }).catch(() => {});
+                                }
+                            }, 500);
+                        }
+                    }
                 } else {
                     console.error(`Firestore document for user ${userId} not found! Signing out.`);
                     firebaseSignOut(auth);
@@ -115,14 +155,58 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 const collectionData = snapshot.docs.map(doc => doc.data() as CollectedSong);
                 // Deduplicate and filter out any incomplete documents
                 const map = new Map<string, CollectedSong>();
+                const songsToRepair: CollectedSong[] = [];
+
                 collectionData.forEach(item => {
-                    if (item && item.id && item.song && item.song.title) map.set(item.id, item);
+                    if (item && item.id && item.song && item.song.title) {
+                        // Check if song has missing or placeholder albumArtUrl
+                        if (isPlaceholderCover(item.song.albumArtUrl)) {
+                            item.song.albumArtUrl = DEFAULT_ALBUM_COVER;
+                            songsToRepair.push(item);
+                        }
+                        map.set(item.id, item);
+                    }
                 });
                 const uniqueCollection = Array.from(map.values());
                 setCurrentUserCollection(uniqueCollection);
                 try {
                     localStorage.setItem(`packtunes_collection_${userId}`, JSON.stringify(uniqueCollection));
                 } catch {}
+
+                // Background repair for all missing art in existing collection
+                if (songsToRepair.length > 0) {
+                    setTimeout(async () => {
+                        const chunkSize = 10;
+                        for (let i = 0; i < songsToRepair.length; i += chunkSize) {
+                            const chunk = songsToRepair.slice(i, i + chunkSize);
+                            await Promise.allSettled(chunk.map(async (item) => {
+                                try {
+                                    const fresh = await getSongDetailsWithFallback(item.song);
+                                    if (fresh && !isPlaceholderCover(fresh.albumArtUrl)) {
+                                        item.song.albumArtUrl = fresh.albumArtUrl;
+                                        if (fresh.previewUrl) {
+                                            item.song.previewUrl = fresh.previewUrl;
+                                        }
+                                        setCurrentUserCollection(prev => prev.map(c => c.id === item.id ? { 
+                                            ...c, 
+                                            song: { 
+                                                ...c.song, 
+                                                albumArtUrl: fresh.albumArtUrl, 
+                                                ...(fresh.previewUrl ? { previewUrl: fresh.previewUrl } : {}) 
+                                            } 
+                                        } : c));
+
+                                        const songDocRef = doc(db, 'users', userId, 'collection', item.id);
+                                        await updateDoc(songDocRef, { 
+                                            'song.albumArtUrl': fresh.albumArtUrl, 
+                                            ...(fresh.previewUrl ? { 'song.previewUrl': fresh.previewUrl } : {}) 
+                                        });
+                                    }
+                                } catch {}
+                            }));
+                        }
+                    }, 300);
+                }
             }));
             
             unsubscribers.push(onSnapshot(collection(db, 'users', userId, 'rewards'), (snapshot) => {
@@ -185,7 +269,21 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             unsubscribers.push(onSnapshot(query(collection(db, 'events'), orderBy('startTime', 'desc')), s => setEvents(s.docs.map(d => ({id: d.id, ...d.data()}) as LabelEvent))));
             unsubscribers.push(onSnapshot(query(collection(db, 'labelRaids'), orderBy('startTime', 'desc')), s => setLabelRaids(s.docs.map(d => ({id: d.id, ...d.data()}) as LabelRaid))));
             unsubscribers.push(onSnapshot(collection(db, 'songBattles'), s => setSongBattles(s.docs.map(d => ({id: d.id, ...d.data()}) as SongBattle))));
-            unsubscribers.push(onSnapshot(query(collection(db, 'globalActivity'), orderBy('timestamp', 'desc'), limit(50)), s => setGlobalActivityFeed(s.docs.map(d => ({id: d.id, ...d.data()}) as GlobalActivity))));
+            unsubscribers.push(onSnapshot(
+                query(collection(db, 'globalActivity'), orderBy('timestamp', 'desc'), limit(50)),
+                (s) => {
+                    const activities = s.docs.map(d => ({ id: d.id, ...d.data() }) as GlobalActivity);
+                    setGlobalActivityFeed(activities);
+                },
+                (error) => {
+                    console.warn("Retrying globalActivity without order index:", error);
+                    unsubscribers.push(onSnapshot(collection(db, 'globalActivity'), (s) => {
+                        const items = s.docs.map(d => ({ id: d.id, ...d.data() }) as GlobalActivity);
+                        items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                        setGlobalActivityFeed(items.slice(0, 50));
+                    }));
+                }
+            ));
             
              unsubscribers.push(onSnapshot(query(collection(db, 'chats'), where('participantIds', 'array-contains', userId)), (snapshot) => {
                 setChats(snapshot.docs.map(doc => doc.data() as Chat));
@@ -334,8 +432,35 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, [currentUser, addNotification]);
 
     const findMythicOwnerName = useCallback(
-        (songId: string, serialNumber: number) => dataService.findMythicOwnerName(songId, serialNumber),
-        []
+        async (songId: string, serialNumber: number) => {
+            // 1. First check recorded owner in Firestore firstMythicOwners
+            const ownerName = await dataService.findMythicOwnerName(songId, serialNumber);
+            if (ownerName) return ownerName;
+
+            // 2. Check if current user owns this Mythic in their collection
+            const userMythic = currentUserCollection.find(cs => cs.song.id === songId && cs.song.rarity === Rarity.Mythic);
+            if (userMythic && currentUser) {
+                try {
+                    const ownerDocRef = doc(db, 'firstMythicOwners', songId);
+                    await setDoc(ownerDocRef, { ownerId: currentUser.id, ownerName: currentUser.name }, { merge: true });
+                } catch {}
+                return currentUser.name;
+            }
+
+            // 3. Check other users
+            for (const u of users) {
+                if (u.showcase?.favoriteSongId === songId || u.showcase?.rarestSongId === songId) {
+                    try {
+                        const ownerDocRef = doc(db, 'firstMythicOwners', songId);
+                        await setDoc(ownerDocRef, { ownerId: u.id, ownerName: u.name }, { merge: true });
+                    } catch {}
+                    return u.name;
+                }
+            }
+
+            return null;
+        },
+        [currentUser, currentUserCollection, users]
     );
     
     const signIn = (email: string, password?: string) => {
@@ -399,6 +524,61 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const newPack = await generateAndOpenPack(userId, existingSongIds, favoriteArtists, token);
             setRewardPack(newPack);
 
+            // Log notable pulls to live global activity feed & register mythics
+            for (const item of newPack) {
+                const activitySong = {
+                    title: item.song.title,
+                    artistName: item.song.artist.name,
+                    artistId: item.song.artist.id,
+                    albumArtUrl: item.song.albumArtUrl,
+                    rarity: item.song.rarity,
+                    isShiny: !!item.song.isShiny,
+                    isPrestige: !!item.isPrestige,
+                };
+
+                if (item.song.rarity === Rarity.Mythic) {
+                    if (currentUser) {
+                        try {
+                            const ownerDocRef = doc(db, 'firstMythicOwners', item.song.id);
+                            const snap = await getDoc(ownerDocRef);
+                            if (!snap.exists()) {
+                                await setDoc(ownerDocRef, { ownerId: currentUser.id, ownerName: currentUser.name });
+                            }
+                        } catch {}
+                        dataService.addGlobalActivity({
+                            type: 'PULL_MYTHIC',
+                            userId: currentUser.id,
+                            userName: currentUser.name,
+                            userPfpUrl: currentUser.pfpUrl,
+                            song: activitySong,
+                            timestamp: Date.now(),
+                        }).catch(() => {});
+                    }
+                } else if (item.song.rarity === Rarity.Jailbroken) {
+                    if (currentUser) {
+                        dataService.addGlobalActivity({
+                            type: 'PULL_JAILBROKEN',
+                            userId: currentUser.id,
+                            userName: currentUser.name,
+                            userPfpUrl: currentUser.pfpUrl,
+                            song: activitySong,
+                            timestamp: Date.now(),
+                        }).catch(() => {});
+                    }
+                } else if (item.song.isShiny && (item.song.rarity === Rarity.Rare || item.song.rarity === Rarity.Uncommon)) {
+                    if (currentUser) {
+                        dataService.addGlobalActivity({
+                            type: 'PULL_SHINY_RARE',
+                            userId: currentUser.id,
+                            userName: currentUser.name,
+                            userPfpUrl: currentUser.pfpUrl,
+                            song: activitySong,
+                            timestamp: Date.now(),
+                        }).catch(() => {});
+                    }
+                }
+            }
+
             // Deduplicate immediately by song instance ID so collection never has duplicate entries
             setCurrentUserCollection((prev) => {
                 const map = new Map<string, CollectedSong>();
@@ -412,8 +592,72 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             });
 
             if (currentUser) {
+                // Update Artist Mastery XP for all pulled artists
+                const masteryUpdates: Record<string, any> = {};
+                const updatedMasteryMap = { ...(currentUser.artistMastery || {}) };
+
+                for (const item of newPack) {
+                    const artist = item.song.artist;
+                    if (!artist || !artist.name) continue;
+                    const artistId = artist.id || artist.name;
+
+                    let xpGained = XP_PER_RARITY[item.song.rarity] || 15;
+                    if (item.song.isShiny) xpGained += 25;
+
+                    const currentMastery = updatedMasteryMap[artistId] || {
+                        artistName: artist.name,
+                        artistPictureUrl: artist.pictureUrl || '',
+                        level: 0,
+                        xp: 0,
+                    };
+
+                    const oldLevel = currentMastery.level || 0;
+                    const newXp = (currentMastery.xp || 0) + xpGained;
+
+                    let newLevel = 0;
+                    for (const levelInfo of MASTERY_LEVELS) {
+                        if (newXp >= levelInfo.xpThreshold) newLevel = levelInfo.level;
+                        else break;
+                    }
+
+                    currentMastery.xp = newXp;
+                    currentMastery.artistName = artist.name;
+                    if (artist.pictureUrl) currentMastery.artistPictureUrl = artist.pictureUrl;
+
+                    if (newLevel > oldLevel) {
+                        currentMastery.level = newLevel;
+                        for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
+                            addNotification({
+                                type: 'mastery',
+                                message: `${artist.name} Mastery Level ${lvl} Unlocked!`,
+                            });
+                            dataService.logMasteryLevelUp(currentUser.id, artistId, lvl).catch(() => {});
+                            dataService.addGlobalActivity({
+                                type: 'ARTIST_MASTERY_UP',
+                                userId: currentUser.id,
+                                userName: currentUser.name,
+                                userPfpUrl: currentUser.pfpUrl,
+                                artistMastery: {
+                                    artistName: artist.name,
+                                    artistPictureUrl: currentMastery.artistPictureUrl,
+                                    level: lvl,
+                                },
+                                timestamp: Date.now(),
+                            }).catch(() => {});
+                        }
+                    }
+
+                    updatedMasteryMap[artistId] = currentMastery;
+                    masteryUpdates[`artistMastery.${artistId}`] = currentMastery;
+                }
+
+                if (Object.keys(masteryUpdates).length > 0) {
+                    updateCurrentUser(masteryUpdates).catch(err => console.warn("Failed to persist mastery:", err));
+                }
+
                 setCurrentUser((prev) => prev ? {
                     ...prev,
+                    artistMastery: updatedMasteryMap,
                     collectionSize: (prev.collectionSize || 0) + newPack.length
                 } : null);
             }
@@ -435,6 +679,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (data.favoriteSongId !== undefined) updateData['showcase.favoriteSongId'] = data.favoriteSongId || deleteField();
         if (data.rarestSongId !== undefined) updateData['showcase.rarestSongId'] = data.rarestSongId || deleteField();
         if (data.proudestVinylIds !== undefined) updateData['showcase.proudestVinylIds'] = data.proudestVinylIds;
+        if (data.canvasSongIds !== undefined) updateData['showcase.canvasSongIds'] = data.canvasSongIds;
         return dataService.updateUser(currentUser!.id, updateData);
     };
 
@@ -1158,6 +1403,79 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
+    const recalculateCollectionMastery = async () => {
+        if (!currentUser) return;
+        addNotification({ type: 'generic', message: 'Scanning collection & recalculating Artist Mastery XP...' });
+
+        try {
+            const masteryMap: Record<string, ArtistMastery> = { ...(currentUser.artistMastery || {}) };
+            const artistSongs: Record<string, { name: string; pictureUrl?: string; xp: number }> = {};
+
+            for (const cs of (currentUserCollection || [])) {
+                if (!cs || !cs.song || !cs.song.artist) continue;
+                const artist = cs.song.artist;
+                const artistId = artist.id || artist.name;
+                if (!artistId) continue;
+
+                if (!artistSongs[artistId]) {
+                    artistSongs[artistId] = {
+                        name: artist.name,
+                        pictureUrl: artist.pictureUrl || '',
+                        xp: 0
+                    };
+                }
+
+                let xp = XP_PER_RARITY[cs.song.rarity] || 10;
+                if (cs.song.isShiny) xp += 30;
+                if (cs.isPrestige) xp += 120;
+                if (cs.song.rarity === Rarity.Jailbroken) xp += 500;
+
+                artistSongs[artistId].xp += xp;
+                if (artist.pictureUrl && !artistSongs[artistId].pictureUrl) {
+                    artistSongs[artistId].pictureUrl = artist.pictureUrl;
+                }
+            }
+
+            let newLevelsUnlocked = 0;
+
+            for (const [artistId, data] of Object.entries(artistSongs)) {
+                const oldMastery = masteryMap[artistId];
+                const oldLevel = oldMastery?.level || 0;
+
+                let newLevel = 0;
+                for (const lvlInfo of MASTERY_LEVELS) {
+                    if (data.xp >= lvlInfo.xpThreshold) newLevel = lvlInfo.level;
+                    else break;
+                }
+
+                masteryMap[artistId] = {
+                    artistName: data.name,
+                    artistPictureUrl: data.pictureUrl || oldMastery?.artistPictureUrl || '',
+                    xp: data.xp,
+                    level: newLevel
+                };
+
+                if (newLevel > oldLevel) {
+                    newLevelsUnlocked++;
+                }
+            }
+
+            // Save full map directly to avoid dot notation path issues
+            await updateCurrentUser({ artistMastery: masteryMap });
+            setCurrentUser(prev => prev ? { ...prev, artistMastery: masteryMap } : null);
+
+            addNotification({
+                type: 'mastery',
+                message: newLevelsUnlocked > 0
+                    ? `Artist Mastery synced! ${newLevelsUnlocked} new level milestone(s) unlocked!`
+                    : 'Artist Mastery synced! All artist XP is up to date with your collection.'
+            });
+        } catch (err) {
+            console.error("Error recalculating mastery:", err);
+            addNotification({ type: 'generic', message: 'Failed to sync artist mastery.' });
+        }
+    };
+
     const value: UserContextType = {
         isLoading,
         currentUser,
@@ -1231,6 +1549,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         claimLabyrinthTreasure,
         resyncGoldenVinyls,
         resyncBadgesAndMastery,
+        recalculateCollectionMastery,
         openNewPack,
         isOpeningPack,
         rewardPack,

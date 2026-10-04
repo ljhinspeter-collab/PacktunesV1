@@ -4,6 +4,7 @@ import { TrophyIcon, CalendarDaysIcon, ClockIcon } from '../components/icons';
 import type { RecordLabel, EventReward, LabelEvent, User } from '../types';
 import { updateAllLeaderboards } from '../services/eventService';
 import { dataService } from '../services/dataService';
+import { ClanDetailsModal } from '../components/ClanDetailsModal';
 
 const COOLDOWN_DURATION = 1 * 24 * 60 * 60 * 1000; // 1 day
 
@@ -62,7 +63,8 @@ const LeaderboardRow: React.FC<{
     labelPfpUrl: string;
     score: number;
     isCurrentUserLabel: boolean;
-}> = ({ rank, labelName, labelPfpUrl, score, isCurrentUserLabel }) => {
+    onClick?: () => void;
+}> = ({ rank, labelName, labelPfpUrl, score, isCurrentUserLabel, onClick }) => {
     
     const getRankColor = () => {
         if (rank === 1) return 'border-yellow-400 bg-yellow-400/10';
@@ -72,13 +74,17 @@ const LeaderboardRow: React.FC<{
     };
 
     return (
-        <div className={`p-3 rounded-lg border flex items-center gap-4 transition-all ${getRankColor()} ${isCurrentUserLabel ? 'ring-2 ring-indigo-500 scale-[1.02] shadow-lg' : 'shadow-md'}`}>
+        <div 
+            onClick={onClick}
+            className={`p-3 rounded-lg border flex items-center gap-4 transition-all ${onClick ? 'cursor-pointer hover:scale-[1.01] hover:border-indigo-500/60' : ''} ${getRankColor()} ${isCurrentUserLabel ? 'ring-2 ring-indigo-500 scale-[1.02] shadow-lg' : 'shadow-md'}`}
+        >
             <div className={`w-10 flex-shrink-0 text-center font-bold text-xl ${rank <= 3 ? 'text-white' : 'text-gray-500'}`}>
                 #{rank}
             </div>
             <img src={labelPfpUrl} alt={labelName} className="w-12 h-12 rounded-lg object-cover flex-shrink-0"/>
             <div className="flex-grow truncate">
                  <h4 className="font-bold truncate">{labelName}</h4>
+                 {onClick && <span className="text-[11px] text-indigo-400 font-medium">Click to view members →</span>}
             </div>
             <div className="text-right flex-shrink-0">
                 <p className="text-lg font-bold text-yellow-300">{score.toLocaleString()}</p>
@@ -89,8 +95,9 @@ const LeaderboardRow: React.FC<{
 };
 
 const CurrentWarView: React.FC<{ contextLabel?: RecordLabel }> = ({ contextLabel }) => {
-    const { events, currentUser } = useContext(UserContext)!;
+    const { events, currentUser, recordLabels } = useContext(UserContext)!;
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [selectedClan, setSelectedClan] = useState<RecordLabel | null>(null);
     const latestEvent = useMemo(() => events?.[0], [events]);
 
     const memberLeaderboardData = useMemo(() => {
@@ -182,18 +189,23 @@ const CurrentWarView: React.FC<{ contextLabel?: RecordLabel }> = ({ contextLabel
                         </button>
                     </div>
                     <div className="space-y-3">
-                        {latestEvent.leaderboard.slice(0, 25).map((data, index) => (
-                            <LeaderboardRow 
-                                key={data.labelId}
-                                rank={index + 1}
-                                labelName={data.name}
-                                labelPfpUrl={data.pfpUrl}
-                                score={data.score}
-                                isCurrentUserLabel={currentUser?.labelId === data.labelId}
-                            />
-                        ))}
+                        {latestEvent.leaderboard.slice(0, 25).map((data, index) => {
+                            const clanObj = recordLabels.find(l => l.id === data.labelId);
+                            return (
+                                <LeaderboardRow 
+                                    key={data.labelId}
+                                    rank={index + 1}
+                                    labelName={data.name}
+                                    labelPfpUrl={data.pfpUrl}
+                                    score={data.score}
+                                    isCurrentUserLabel={currentUser?.labelId === data.labelId}
+                                    onClick={clanObj ? () => setSelectedClan(clanObj) : undefined}
+                                />
+                            );
+                        })}
                     </div>
                 </div>
+                {selectedClan && <ClanDetailsModal label={selectedClan} onClose={() => setSelectedClan(null)} />}
             </div>
         );
     }
@@ -215,6 +227,7 @@ const CurrentWarView: React.FC<{ contextLabel?: RecordLabel }> = ({ contextLabel
 
 const AllTimeRankings: React.FC = () => {
     const { recordLabels, currentUser } = useContext(UserContext)!;
+    const [selectedClan, setSelectedClan] = useState<RecordLabel | null>(null);
 
     const labelScores = useMemo(() => {
         const scores = recordLabels.map(label => {
@@ -232,7 +245,7 @@ const AllTimeRankings: React.FC = () => {
     return (
          <div className="max-w-3xl mx-auto">
             <h3 className="text-2xl font-bold mb-4 text-center">All-Time Rankings</h3>
-            <p className="text-center text-gray-400 mb-6">Labels are ranked based on trophy points from past wars (1st: 3pts, 2nd: 2pts, 3rd: 1pt).</p>
+            <p className="text-center text-gray-400 mb-6">Labels are ranked based on trophy points from past wars (1st: 3pts, 2nd: 2pts, 3rd: 1pt). Click any clan to see its members.</p>
             <div className="space-y-3">
                 {labelScores.map(({ label, score }, index) => (
                     <LeaderboardRow 
@@ -242,9 +255,11 @@ const AllTimeRankings: React.FC = () => {
                         labelPfpUrl={label.pfpUrl}
                         score={score}
                         isCurrentUserLabel={currentUser?.labelId === label.id}
+                        onClick={() => setSelectedClan(label)}
                     />
                 ))}
             </div>
+            {selectedClan && <ClanDetailsModal label={selectedClan} onClose={() => setSelectedClan(null)} />}
         </div>
     );
 };

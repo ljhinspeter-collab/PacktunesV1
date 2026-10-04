@@ -3,6 +3,7 @@ import type { CollectedSong } from '../types';
 import { Rarity } from '../types';
 import { getRarityStyles } from '../utils/rarity';
 import { SparklesIcon, DiamondIcon } from './icons';
+import { DEFAULT_ALBUM_COVER, handleImageError, isPlaceholderCover } from '../utils/imageFallback';
 
 interface SongCardProps {
   collectedSong: CollectedSong;
@@ -35,7 +36,12 @@ export const SongCard: React.FC<SongCardProps> = ({ collectedSong, onClick }) =>
   return (
     <div className={`card-3d-container ${glowClass}`} onClick={() => onClick(collectedSong)}>
       <div className={containerClasses}>
-        <img src={song.albumArtUrl} crossOrigin="anonymous" alt={song.album.title} className="absolute inset-0 w-full h-full object-cover" />
+        <img
+          src={!isPlaceholderCover(song.albumArtUrl) ? song.albumArtUrl : DEFAULT_ALBUM_COVER}
+          alt={song.album.title}
+          onError={handleImageError}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
         
         {song.rarity === Rarity.Jailbroken && <div className="jailbroken-overlay-effect"></div>}

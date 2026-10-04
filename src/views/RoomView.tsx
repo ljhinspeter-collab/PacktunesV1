@@ -8,7 +8,7 @@ import { PencilIcon } from '../components/icons';
 
 const Avatar: React.FC<{ user: User, isOwner: boolean }> = ({ user, isOwner }) => (
     <div className="absolute bottom-4 left-4 flex flex-col items-center z-20 group" style={{ transform: `translateX(${isOwner ? 0 : 60}px)` }}>
-        <img src={user.pfpUrl} crossOrigin="anonymous" alt={user.name} className="w-14 h-14 rounded-full object-cover border-4 border-gray-800" />
+        <img src={user.pfpUrl} alt={user.name} className="w-14 h-14 rounded-full object-cover border-4 border-gray-800" />
         <div className="mt-1 px-2 py-0.5 bg-black/50 rounded-full text-xs text-white font-semibold">
             {user.name}
         </div>
@@ -28,7 +28,7 @@ const RoomEditor: React.FC<{ user: User, onPlaceItem: (item: RoomItem) => void }
             <div className="flex gap-3 overflow-x-auto pb-2">
                 {userInventoryItems.filter(item => item.type === 'furniture').map(item => (
                     <button key={item.id} onClick={() => onPlaceItem(item)} title={`Place ${item.name}`} className="flex-shrink-0 w-24 h-24 bg-gray-800 p-2 rounded-lg border border-gray-600 flex items-center justify-center hover:bg-gray-700">
-                        <img src={item.imageUrl} crossOrigin="anonymous" alt={item.name} className="max-w-full max-h-full object-contain" />
+                        <img src={item.imageUrl} alt={item.name} className="max-w-full max-h-full object-contain" />
                     </button>
                 ))}
             </div>
@@ -83,7 +83,7 @@ const PlacedObject: React.FC<{ item: PlacedItem, isEditing: boolean, onMove: (in
             }}
             className={isEditing ? 'border-2 border-dashed border-indigo-400' : ''}
         >
-            <img src={itemData.imageUrl} crossOrigin="anonymous" alt={itemData.name} className="w-full h-full object-contain pointer-events-none" />
+            <img src={itemData.imageUrl} alt={itemData.name} className="w-full h-full object-contain pointer-events-none" />
         </div>
     );
 };

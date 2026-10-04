@@ -4,6 +4,7 @@ import type { GlobalActivity } from '../types';
 import { Rarity } from '../types';
 import { getRarityStyles } from '../utils/rarity';
 import { SparklesIcon, DiamondIcon, VinylIcon, CrownIcon } from './icons';
+import { DEFAULT_ALBUM_COVER, DEFAULT_VINYL_COVER, handleImageError } from '../utils/imageFallback';
 
 const ActivityCard: React.FC<{ activity: GlobalActivity }> = ({ activity }) => {
     const { setViewingUser, users } = useContext(UserContext)!;
@@ -22,33 +23,41 @@ const ActivityCard: React.FC<{ activity: GlobalActivity }> = ({ activity }) => {
 
         switch(activity.type) {
             case 'PULL_JAILBROKEN':
-                icon = <div className="w-10 h-10 rounded-md jailbroken-glow jailbroken-border"><img src={activity.song!.albumArtUrl} className="w-full h-full object-cover rounded"/></div>;
-                message = <>{userNameSpan} just pulled the <span className="font-bold text-gray-300 glitch-text" data-text="JAILBROKEN">JAILBROKEN</span> song "{activity.song!.title}"!</>;
+                icon = <div className="w-10 h-10 rounded-md jailbroken-glow jailbroken-border"><img src={activity.song?.albumArtUrl || DEFAULT_ALBUM_COVER} onError={handleImageError} className="w-full h-full object-cover rounded"/></div>;
+                message = <>{userNameSpan} just pulled the <span className="font-bold text-gray-300 glitch-text" data-text="JAILBROKEN">JAILBROKEN</span> song "{activity.song?.title}"!</>;
                 break;
             case 'PULL_MYTHIC':
-                 icon = <div className="w-10 h-10 rounded-md mythic-glow mythic-border"><img src={activity.song!.albumArtUrl} className="w-full h-full object-cover rounded"/></div>;
-                message = <>{userNameSpan} found a <span className="font-bold text-purple-400">Mythic</span> "{activity.song!.title}"!</>;
+                 icon = <div className="w-10 h-10 rounded-md mythic-glow mythic-border"><img src={activity.song?.albumArtUrl || DEFAULT_ALBUM_COVER} onError={handleImageError} className="w-full h-full object-cover rounded"/></div>;
+                message = <>{userNameSpan} found a <span className="font-bold text-purple-400">Mythic</span> "{activity.song?.title}"!</>;
                 break;
             case 'PULL_SHINY_RARE':
-                 icon = <div className="w-10 h-10 rounded-md shiny-glow"><img src={activity.song!.albumArtUrl} className="w-full h-full object-cover rounded"/></div>;
-                message = <>{userNameSpan} discovered a <span className="font-bold text-cyan-400">Shiny {activity.song!.rarity}</span> song!</>;
+                 icon = <div className="w-10 h-10 rounded-md shiny-glow"><img src={activity.song?.albumArtUrl || DEFAULT_ALBUM_COVER} onError={handleImageError} className="w-full h-full object-cover rounded"/></div>;
+                message = <>{userNameSpan} discovered a <span className="font-bold text-cyan-400">Shiny {activity.song?.rarity}</span> song!</>;
                 break;
             case 'CRAFT_PRESTIGE':
-                icon = <div className="w-10 h-10 rounded-md prestige-glow prestige-border"><img src={activity.song!.albumArtUrl} className="w-full h-full object-cover rounded"/></div>;
-                message = <>{userNameSpan} crafted a <span className="font-bold text-yellow-300">Prestige</span> version of "{activity.song!.title}"!</>;
+                icon = <div className="w-10 h-10 rounded-md prestige-glow prestige-border"><img src={activity.song?.albumArtUrl || DEFAULT_ALBUM_COVER} onError={handleImageError} className="w-full h-full object-cover rounded"/></div>;
+                message = <>{userNameSpan} crafted a <span className="font-bold text-yellow-300">Prestige</span> version of "{activity.song?.title}"!</>;
                 break;
             case 'COMPLETE_VINYL':
-                icon = <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center"><VinylIcon className="w-8 h-8 text-yellow-400"/></div>;
-                message = <>{userNameSpan} completed the <span className="font-bold text-yellow-400">Golden Vinyl</span> for "{activity.vinyl!.albumName}"!</>;
+                icon = (
+                    <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center overflow-hidden p-0.5 border border-yellow-500/50">
+                        <img 
+                            src={activity.vinyl?.albumArtUrl || DEFAULT_VINYL_COVER} 
+                            onError={(e) => handleImageError(e, DEFAULT_VINYL_COVER)}
+                            className="w-full h-full rounded-full object-cover" 
+                        />
+                    </div>
+                );
+                message = <>{userNameSpan} completed the <span className="font-bold text-yellow-400">Golden Vinyl</span> for "{activity.vinyl?.albumName}"!</>;
                 break;
             case 'ARTIST_MASTERY_UP':
                 icon = (
                     <div className="relative w-10 h-10">
-                        {activity.artistMastery!.artistPictureUrl ? (
-                            <img src={activity.artistMastery!.artistPictureUrl} className="w-10 h-10 rounded-full object-cover"/>
+                        {activity.artistMastery?.artistPictureUrl ? (
+                            <img src={activity.artistMastery.artistPictureUrl} onError={handleImageError} className="w-10 h-10 rounded-full object-cover"/>
                         ) : (
                             <div className="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center font-bold text-white flex-shrink-0">
-                                {activity.artistMastery!.artistName.charAt(0)}
+                                {activity.artistMastery?.artistName?.charAt(0) || 'A'}
                             </div>
                         )}
                         <div className="absolute -bottom-1 -right-1 bg-gray-800 rounded-full p-0.5">
@@ -59,9 +68,9 @@ const ActivityCard: React.FC<{ activity: GlobalActivity }> = ({ activity }) => {
                 message = (
                     <>{userNameSpan} achieved{" "}
                     <span className="font-bold text-indigo-300">
-                        Mastery Level {activity.artistMastery!.level}
+                        Mastery Level {activity.artistMastery?.level}
                     </span>{" "}
-                    with {activity.artistMastery!.artistName}!</>
+                    with {activity.artistMastery?.artistName}!</>
                 );
                 break;
             default:

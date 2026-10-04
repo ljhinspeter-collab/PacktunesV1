@@ -90,7 +90,7 @@ const App: React.FC = () => {
                 {currentUser.activeProfileFrame ? (
                     <ProfileFrame pfpUrl={currentUser.pfpUrl} frameUrl={currentUser.activeProfileFrame.albumArtUrl} size="sm" />
                 ) : (
-                    <img src={currentUser.pfpUrl} crossOrigin="anonymous" alt={currentUser.name} className="w-10 h-10 rounded-full object-cover" />
+                    <img src={currentUser.pfpUrl} alt={currentUser.name} className="w-10 h-10 rounded-full object-cover" />
                 )}
                  <div className="text-left">
                       <p className="font-semibold text-white">{currentUser.name}</p>

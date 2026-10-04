@@ -3,7 +3,7 @@ import { UserContext } from '../contexts/UserContext';
 import type { RecordLabel, User, CollectedSong, JoinRequest, Chat, Message, LabelChatMessage, ChallengeLevel, ArtistMastery, Trophy, Title } from '../types';
 import { Rarity } from '../types';
 // FIX: Removed unused BrainIcon import
-import { BuildingLibraryIcon, UsersIcon, TrophyIcon, PencilIcon, LockClosedIcon, CheckIcon, XMarkIcon, PaperAirplaneIcon, DiamondIcon, StarIcon, RectangleStackIcon, FaceSmileIcon, SparklesIcon, VinylIcon, SwordsIcon } from '../components/icons';
+import { BuildingLibraryIcon, UsersIcon, TrophyIcon, PencilIcon, LockClosedIcon, CheckIcon, XMarkIcon, PaperAirplaneIcon, DiamondIcon, StarIcon, RectangleStackIcon, FaceSmileIcon, SparklesIcon, VinylIcon, SwordsIcon, SearchIcon } from '../components/icons';
 import { FriendsView } from './FriendsView';
 import { EventsView } from './EventsView';
 import { BattlesView } from './BattlesView';
@@ -19,6 +19,9 @@ import { challenges } from '../services/challengeService';
 import { RaidsView } from './RaidsView';
 import { ProfileFrame } from '../components/ProfileFrame';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { CanvasShowcaseView } from '../components/CanvasShowcaseView';
+import { DEFAULT_VINYL_COVER, handleImageError, isPlaceholderCover } from '../utils/imageFallback';
+import { ClanDetailsModal } from '../components/ClanDetailsModal';
 
 
 const fileToBase64 = (file: File): Promise<string> => {
@@ -93,7 +96,7 @@ const TitleDisplay: React.FC<{ title: Title; className?: string }> = ({ title, c
 export const UserProfileModal: React.FC<{ user: User, onClose: () => void }> = ({ user, onClose }) => {
     const { getOrCreateChat, viewingUserShowcaseSongs, viewingUserCollection } = useContext(UserContext)!;
     const [selectedSong, setSelectedSong] = useState<CollectedSong | null>(null);
-    const [activeTab, setActiveTab] = useState<'showcase' | 'playlist'>('showcase');
+    const [activeTab, setActiveTab] = useState<'showcase' | 'badges' | 'playlist'>('showcase');
 
     const handleSendMessage = () => {
         getOrCreateChat(user);
@@ -154,36 +157,62 @@ export const UserProfileModal: React.FC<{ user: User, onClose: () => void }> = (
     return (
     <>
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content w-full max-w-md bg-gray-800 rounded-lg flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-                <div className="p-6">
+            <div className="modal-content w-full max-w-3xl bg-gray-900 border border-gray-700 rounded-2xl flex flex-col max-h-[90vh] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="p-5 sm:p-6 border-b border-gray-800 bg-gray-900/80">
                     <div className="flex flex-col items-center text-center">
                         <div className="mb-3">
                             {user.activeProfileFrame ? (
                                 <ProfileFrame pfpUrl={user.pfpUrl} frameUrl={user.activeProfileFrame.albumArtUrl} size="lg" />
                             ) : (
-                                <img src={user.pfpUrl} alt={user.name} className="w-24 h-24 rounded-full object-cover border-4 border-gray-600" />
+                                <img src={user.pfpUrl} alt={user.name} className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-4 border-gray-700 shadow-lg" />
                             )}
                         </div>
-                        <h3 className="text-2xl font-bold">{user.name}</h3>
+                        <h3 className="text-2xl font-black text-white">{user.name}</h3>
                         {activeTitle && (
                             <TitleDisplay 
                                 title={activeTitle} 
                                 className={user.name.toLowerCase() === 'vize' && activeTitle.id === 'title-exclusive-veilkeeper' ? 'veilkeeper-title-effect' : ''}
                             />
                         )}
-                        <p className="text-gray-400 mt-1 text-sm max-w-md">{user.bio}</p>
+                        <p className="text-gray-400 mt-1 text-xs sm:text-sm max-w-md">{user.bio}</p>
                     </div>
                 </div>
 
-                <div className="flex-shrink-0 border-b border-gray-700 flex">
-                    <button onClick={() => setActiveTab('showcase')} className={`w-1/2 py-3 font-semibold text-sm transition-colors ${activeTab === 'showcase' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Showcase</button>
-                    <button onClick={() => setActiveTab('playlist')} className={`w-1/2 py-3 font-semibold text-sm transition-colors ${activeTab === 'playlist' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Playlist</button>
+                <div className="flex-shrink-0 border-b border-gray-800 flex bg-gray-950/40">
+                    <button 
+                        onClick={() => setActiveTab('showcase')} 
+                        className={`flex-1 py-3 font-semibold text-xs sm:text-sm transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'showcase' ? 'border-b-2 border-emerald-400 text-white bg-gray-800/40' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        Showcase
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('badges')} 
+                        className={`flex-1 py-3 font-semibold text-xs sm:text-sm transition-colors ${activeTab === 'badges' ? 'border-b-2 border-indigo-500 text-white bg-gray-800/40' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        Badges & Vinyls
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('playlist')} 
+                        className={`flex-1 py-3 font-semibold text-xs sm:text-sm transition-colors ${activeTab === 'playlist' ? 'border-b-2 border-indigo-500 text-white bg-gray-800/40' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        Playlist
+                    </button>
                 </div>
                 
-                <div className="overflow-y-auto">
+                <div className="overflow-y-auto flex-1">
                     {activeTab === 'showcase' && (
+                        <div className="p-3 sm:p-5">
+                            <CanvasShowcaseView 
+                                user={user} 
+                                collection={viewingUserCollection} 
+                                onSongClick={(song) => setSelectedSong(song)} 
+                            />
+                        </div>
+                    )}
+                    {activeTab === 'badges' && (
                         <div className="p-6">
-                            <div className="mt-6 pt-4 border-t border-gray-700 flex justify-center gap-4">
+                            <div className="flex justify-center gap-4">
                                 <ShowcaseSongItem title="Favorite" item={viewingUserShowcaseSongs?.favoriteSong} onClick={() => viewingUserShowcaseSongs?.favoriteSong && setSelectedSong(viewingUserShowcaseSongs.favoriteSong)} />
                                 <ShowcaseSongItem title="Rarest Gem" item={viewingUserShowcaseSongs?.rarestSong} onClick={() => viewingUserShowcaseSongs?.rarestSong && setSelectedSong(viewingUserShowcaseSongs.rarestSong)} />
                             </div>
@@ -197,7 +226,12 @@ export const UserProfileModal: React.FC<{ user: User, onClose: () => void }> = (
                                                 {vinyl ? (
                                                     <div className="group w-full h-full relative">
                                                         <div className="absolute inset-0 bg-black rounded-full"></div>
-                                                        <img src={vinyl.albumArtUrl} alt={vinyl.albumName} className="absolute inset-1 w-[calc(100%-0.5rem)] h-[calc(100%-0.5rem)] rounded-full object-cover" />
+                                                        <img 
+                                                            src={!isPlaceholderCover(vinyl.albumArtUrl) ? vinyl.albumArtUrl : DEFAULT_VINYL_COVER} 
+                                                            alt={vinyl.albumName} 
+                                                            onError={(e) => handleImageError(e, DEFAULT_VINYL_COVER)}
+                                                            className="absolute inset-1 w-[calc(100%-0.5rem)] h-[calc(100%-0.5rem)] rounded-full object-cover" 
+                                                        />
                                                     </div>
                                                 ) : (
                                                     <div className="w-full h-full border-2 border-dashed border-gray-600 rounded-full"></div>
@@ -231,12 +265,13 @@ export const UserProfileModal: React.FC<{ user: User, onClose: () => void }> = (
                     )}
                 </div>
                 
-                 <div className="sticky bottom-0 bg-gray-800 p-4 border-t border-gray-700 mt-auto">
+                 <div className="sticky bottom-0 bg-gray-900 p-4 border-t border-gray-800 mt-auto">
                     <div className="flex items-center gap-3">
-                        <button onClick={handleSendMessage} className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-semibold flex items-center justify-center gap-2">
+                        <button onClick={handleSendMessage} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold flex items-center justify-center gap-2 text-white shadow-md">
                             <PaperAirplaneIcon className="w-5 h-5"/>
+                            Message
                         </button>
-                         <button onClick={onClose} className="w-full py-2 bg-gray-600 hover:bg-gray-500 rounded-md">Close</button>
+                         <button onClick={onClose} className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 font-semibold border border-gray-700">Close</button>
                     </div>
                 </div>
             </div>
@@ -546,6 +581,8 @@ const MyLabelView: React.FC<{ label: RecordLabel }> = ({ label }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [members, setMembers] = useState<User[]>([]);
     const [isLoadingMembers, setIsLoadingMembers] = useState(true);
+    const [showExploreClans, setShowExploreClans] = useState(false);
+    const [selectedClan, setSelectedClan] = useState<RecordLabel | null>(null);
 
     const isOwner = currentUser ? currentUser.id === label.ownerId : false;
     
@@ -557,18 +594,43 @@ const MyLabelView: React.FC<{ label: RecordLabel }> = ({ label }) => {
             return;
         }
         dataService.getUsersByIds(label.memberIds).then(memberProfiles => {
-            setMembers(memberProfiles || []);
+            const sorted = (memberProfiles || []).filter(Boolean).sort((a, b) => {
+                if (a.id === label.ownerId) return -1;
+                if (b.id === label.ownerId) return 1;
+                const aScore = (a.prestigeCount || 0) * 100 + (a.collectionSize || 0);
+                const bScore = (b.prestigeCount || 0) * 100 + (b.collectionSize || 0);
+                return bScore - aScore;
+            });
+            setMembers(sorted);
             setIsLoadingMembers(false);
         }).catch(err => {
             console.warn('Could not load label members:', err);
             setMembers([]);
             setIsLoadingMembers(false);
         });
-    }, [label.memberIds]);
+    }, [label.memberIds, label.ownerId]);
 
     const pendingRequests = useMemo(() => {
         return (label.pendingRequests || []).filter(Boolean).sort((a, b) => (a.requestedAt || 0) - (b.requestedAt || 0));
     }, [label.pendingRequests]);
+
+    if (showExploreClans) {
+        return (
+            <div>
+                <div className="mb-6 flex items-center justify-between">
+                    <button
+                        onClick={() => setShowExploreClans(false)}
+                        className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-semibold text-sm transition-colors flex items-center gap-2 border border-gray-700"
+                    >
+                        ← Back to My Clan ({label.name})
+                    </button>
+                    <span className="text-xs text-gray-400">Click any clan to view its members</span>
+                </div>
+                <DiscoverLabelsView onSelectClan={(clan) => setSelectedClan(clan)} />
+                {selectedClan && <ClanDetailsModal label={selectedClan} onClose={() => setSelectedClan(null)} />}
+            </div>
+        );
+    }
 
     return (
         <>
@@ -581,6 +643,12 @@ const MyLabelView: React.FC<{ label: RecordLabel }> = ({ label }) => {
                             <p className="text-gray-400 mt-1 max-w-lg">{label.description || ''}</p>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+                           <button 
+                                onClick={() => setShowExploreClans(true)} 
+                                className="px-4 py-2 bg-indigo-600/80 hover:bg-indigo-600 rounded-md font-semibold transition-colors text-sm flex items-center gap-1.5 shadow"
+                            >
+                                <BuildingLibraryIcon className="w-4 h-4"/> Explore All Clans
+                           </button>
                            {isOwner && (
                                 <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md font-semibold transition-colors text-sm flex items-center gap-2">
                                     <PencilIcon className="w-4 h-4"/> Edit Label
@@ -596,13 +664,17 @@ const MyLabelView: React.FC<{ label: RecordLabel }> = ({ label }) => {
                             <p className="text-sm text-gray-400">Members</p>
                             <p className="text-2xl font-bold">{(label.memberIds ?? []).length} / 25</p>
                         </div>
+                        <div>
+                            <p className="text-sm text-gray-400">Trophies</p>
+                            <p className="text-2xl font-bold text-amber-400">{(label.trophies || []).length}</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div className="flex flex-nowrap justify-start sm:justify-center overflow-x-auto border-b border-gray-700 mb-6 no-scrollbar">
                 <button onClick={() => setActiveTab('chat')} className={`flex-shrink-0 px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'chat' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Chat</button>
-                <button onClick={() => setActiveTab('members')} className={`flex-shrink-0 px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'members' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Members</button>
+                <button onClick={() => setActiveTab('members')} className={`flex-shrink-0 px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'members' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Members ({(label.memberIds ?? []).length})</button>
                 <button onClick={() => setActiveTab('wars')} className={`flex-shrink-0 px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'wars' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Wars</button>
                 <button onClick={() => setActiveTab('raids')} className={`flex-shrink-0 px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'raids' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Raids</button>
                  <button onClick={() => setActiveTab('accolades')} className={`flex-shrink-0 px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'accolades' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>Accolades</button>
@@ -618,20 +690,97 @@ const MyLabelView: React.FC<{ label: RecordLabel }> = ({ label }) => {
             
             {activeTab === 'members' && (
                 <div>
-                    <h3 className="text-xl font-bold mb-4">Members ({members.length})</h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-bold">Roster & Clan Members ({members.length})</h3>
+                        <span className="text-xs text-gray-400">Click any member to inspect profile</span>
+                    </div>
                     {isLoadingMembers ? (
-                         <div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-400"></div></div>
+                         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-400"></div></div>
                     ) : (
-                        <div className="space-y-3">
-                            {(members || []).filter(Boolean).map(member => (
-                                <button key={member.id} onClick={() => setViewingUser(member)} className="w-full text-left flex items-center p-3 bg-gray-800 rounded-lg border border-gray-700 hover:bg-gray-700/50 transition-colors">
-                                    <img src={member.pfpUrl || 'https://i.pravatar.cc/150'} alt={member.name || 'Member'} className="w-10 h-10 rounded-full object-cover"/>
-                                    <div className="ml-4">
-                                        <p className="font-semibold">{member.name || 'Member'}</p>
-                                        {label.ownerId === member.id && <p className="text-xs text-yellow-400">Owner</p>}
+                        <div className="space-y-2.5">
+                            {(members || []).filter(Boolean).map(member => {
+                                const isClanLeader = label.ownerId === member.id;
+                                const isCurrentUser = currentUser?.id === member.id;
+
+                                return (
+                                    <div 
+                                        key={member.id} 
+                                        onClick={() => setViewingUser(member)} 
+                                        className={`w-full text-left flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer group ${
+                                            isCurrentUser
+                                                ? 'bg-indigo-950/40 border-indigo-500/50 hover:border-indigo-400'
+                                                : isClanLeader
+                                                ? 'bg-amber-950/20 border-amber-500/30 hover:border-amber-400'
+                                                : 'bg-gray-800/80 border-gray-700 hover:bg-gray-700/60'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3.5 min-w-0">
+                                            <div className="relative flex-shrink-0">
+                                                {member.activeProfileFrame ? (
+                                                    <ProfileFrame 
+                                                        pfpUrl={member.pfpUrl || 'https://i.pravatar.cc/150'} 
+                                                        frameUrl={member.activeProfileFrame.albumArtUrl} 
+                                                        size="sm" 
+                                                    />
+                                                ) : (
+                                                    <img 
+                                                        src={member.pfpUrl || 'https://i.pravatar.cc/150'} 
+                                                        alt={member.name || 'Member'} 
+                                                        className="w-11 h-11 rounded-full object-cover border border-gray-600"
+                                                    />
+                                                )}
+                                                {isClanLeader && (
+                                                    <div className="absolute -bottom-1 -right-1 bg-amber-500 text-black text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center shadow" title="Clan Leader">
+                                                        ★
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="min-w-0 truncate">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-bold text-white text-sm truncate group-hover:text-indigo-300 transition-colors">
+                                                        {member.name || 'Member'}
+                                                    </p>
+                                                    {isClanLeader ? (
+                                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex-shrink-0">
+                                                            Leader
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-gray-700 text-gray-300 flex-shrink-0">
+                                                            Member
+                                                        </span>
+                                                    )}
+                                                    {isCurrentUser && (
+                                                        <span className="text-[10px] font-bold text-indigo-400 bg-indigo-900/60 px-1.5 py-0.2 rounded">
+                                                            You
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {member.bio && <p className="text-xs text-gray-400 truncate max-w-xs">{member.bio}</p>}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-3 flex-shrink-0 text-xs">
+                                            <div className="text-right hidden sm:block">
+                                                <div className="flex items-center justify-end gap-1 text-gray-300">
+                                                    <RectangleStackIcon className="w-3.5 h-3.5 text-gray-400" />
+                                                    <span className="font-semibold">{(member.collectionSize || 0).toLocaleString()}</span>
+                                                </div>
+                                                {(member.prestigeCount || 0) > 0 && (
+                                                    <div className="flex items-center justify-end gap-1 text-yellow-400 font-bold text-[11px]">
+                                                        <DiamondIcon className="w-3 h-3" />
+                                                        <span>{member.prestigeCount} Prestige</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <span className="px-3 py-1 bg-gray-700 group-hover:bg-indigo-600 text-gray-200 group-hover:text-white rounded-lg text-xs font-semibold transition-colors">
+                                                Profile
+                                            </span>
+                                        </div>
                                     </div>
-                                </button>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -749,25 +898,45 @@ const TrophyDetailModal: React.FC<{ trophy: Trophy; onClose: () => void }> = ({ 
 };
 
 
-const DiscoverLabelsView: React.FC = () => {
+const DiscoverLabelsView: React.FC<{ onSelectClan?: (label: RecordLabel) => void }> = ({ onSelectClan }) => {
     const { currentUser, currentUserCollection, recordLabels, joinLabel, requestToJoinLabel } = useContext(UserContext)!;
     const [isCreating, setIsCreating] = useState(false);
+    const [selectedClan, setSelectedClan] = useState<RecordLabel | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
     
     const mythicCount = useMemo(() => {
         return currentUserCollection.filter(s => s && s.song && s.song.rarity === Rarity.Mythic).length;
     }, [currentUserCollection]);
     const canCreateLabel = mythicCount >= 5;
 
+    const filteredLabels = useMemo(() => {
+        const list = (recordLabels || []).filter(l => l && l.id);
+        if (!searchQuery.trim()) return list;
+        const q = searchQuery.toLowerCase().trim();
+        return list.filter(l => 
+            (l.name || '').toLowerCase().includes(q) ||
+            (l.description || '').toLowerCase().includes(q)
+        );
+    }, [recordLabels, searchQuery]);
+
+    const handleClanCardClick = (label: RecordLabel) => {
+        if (onSelectClan) {
+            onSelectClan(label);
+        } else {
+            setSelectedClan(label);
+        }
+    };
+
     return (
         <>
             <div className="text-center mb-8">
                 <BuildingLibraryIcon className="w-12 h-12 text-indigo-400 mx-auto mb-2" />
                 <h2 className="text-3xl font-bold">Join a Record Label</h2>
-                <p className="text-gray-400 max-w-lg mx-auto">Team up with other collectors to build the ultimate shared vault. Create your own label or join an existing one.</p>
+                <p className="text-gray-400 max-w-lg mx-auto">Team up with other collectors to build the ultimate shared vault. Click any clan to see who's in it, or create your own label.</p>
                 <div className="mt-4">
                     <button 
                         onClick={() => setIsCreating(true)} 
-                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-md font-bold transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
+                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-md font-bold transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/20"
                         disabled={!canCreateLabel}
                         title={!canCreateLabel ? 'You need to collect at least 5 Mythic songs to create a label.' : ''}
                     >
@@ -780,50 +949,115 @@ const DiscoverLabelsView: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Search filter for clans */}
+            <div className="max-w-3xl mx-auto mb-4">
+                <div className="relative">
+                    <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search clans by name or keyword..."
+                        className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                    />
+                </div>
+            </div>
             
-            <div className="max-w-3xl mx-auto space-y-4">
-                {recordLabels.filter(l => l && l.id).map(label => {
-                    const hasRequested = !!(currentUser?.pendingLabelRequests?.includes(label.id));
-                    const memberCount = (label.memberIds ?? []).length;
-                    const isFull = memberCount >= 25;
-                    const isMember = !!(currentUser && (label.memberIds ?? []).includes(currentUser.id));
-                    return (
-                        <div key={label.id} className="bg-gray-800 p-4 rounded-lg border border-gray-700 flex items-center gap-4">
-                            <img src={label.pfpUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150'} alt={label.name || 'Label'} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
-                            <div className="flex-grow">
-                                <div className="flex items-center gap-2">
-                                    <h4 className="text-lg font-bold">{label.name || 'Unnamed Label'}</h4>
-                                    {label.joinType === 'request' && <span title="Request to Join"><LockClosedIcon className="w-4 h-4 text-gray-400" /></span>}
+            <div className="max-w-3xl mx-auto space-y-3">
+                {filteredLabels.length === 0 ? (
+                    <div className="py-12 text-center text-gray-400 bg-gray-800/40 rounded-xl border border-gray-700">
+                        {searchQuery ? `No clans found matching "${searchQuery}"` : 'No clans currently found.'}
+                    </div>
+                ) : (
+                    filteredLabels.map(label => {
+                        const hasRequested = !!(currentUser?.pendingLabelRequests?.includes(label.id));
+                        const memberCount = (label.memberIds ?? []).length;
+                        const isFull = memberCount >= 25;
+                        const isMember = !!(currentUser && (label.memberIds ?? []).includes(currentUser.id));
+                        
+                        return (
+                            <div 
+                                key={label.id} 
+                                onClick={() => handleClanCardClick(label)}
+                                className="bg-gray-800/90 hover:bg-gray-750 p-4 rounded-xl border border-gray-700 hover:border-indigo-500/60 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer group shadow-md"
+                            >
+                                <div className="flex items-center gap-4 min-w-0 flex-grow">
+                                    <img 
+                                        src={label.pfpUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150'} 
+                                        alt={label.name || 'Label'} 
+                                        className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-gray-600 group-hover:border-indigo-400 transition-colors" 
+                                    />
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <h4 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors truncate">
+                                                {label.name || 'Unnamed Label'}
+                                            </h4>
+                                            {label.joinType === 'request' && (
+                                                <span title="Request to Join Required" className="text-amber-400">
+                                                    <LockClosedIcon className="w-4 h-4" />
+                                                </span>
+                                            )}
+                                            {isMember && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                                    Your Clan
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-sm text-gray-400 line-clamp-1">{label.description || 'No description'}</p>
+                                        <div className="flex items-center gap-3 text-xs text-gray-400 mt-1.5 font-medium">
+                                            <span className="flex items-center gap-1 text-indigo-300">
+                                                <UsersIcon className="w-3.5 h-3.5 text-indigo-400" />
+                                                {memberCount} / 25 Members
+                                            </span>
+                                            {(label.trophies || []).length > 0 && (
+                                                <span className="flex items-center gap-1 text-amber-300">
+                                                    <TrophyIcon className="w-3.5 h-3.5 text-amber-400" />
+                                                    {(label.trophies || []).length} Trophies
+                                                </span>
+                                            )}
+                                            <span className="text-indigo-400 underline group-hover:text-indigo-300 font-semibold ml-auto sm:ml-0">
+                                                View Roster →
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <p className="text-sm text-gray-400">{label.description || ''}</p>
-                                <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-1">
-                                    <UsersIcon className="w-4 h-4" />
-                                    <span>{memberCount} / 25 Members</span>
+
+                                <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                    <button 
+                                        onClick={() => handleClanCardClick(label)}
+                                        className="px-3.5 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 hover:text-white rounded-lg font-semibold text-xs transition-colors flex items-center gap-1.5"
+                                    >
+                                        <UsersIcon className="w-3.5 h-3.5" />
+                                        Members
+                                    </button>
+
+                                    {label.joinType === 'open' ? (
+                                        <button 
+                                            onClick={() => joinLabel(label.id)} 
+                                            className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-bold text-xs text-white transition-colors flex-shrink-0 disabled:bg-gray-600 disabled:cursor-not-allowed shadow"
+                                            disabled={isFull || isMember}
+                                        >
+                                            {isFull ? 'Full' : isMember ? 'Member' : 'Join'}
+                                        </button>
+                                    ) : (
+                                        <button 
+                                            onClick={() => requestToJoinLabel(label.id)}
+                                            disabled={hasRequested || isFull || isMember}
+                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-bold text-xs text-white transition-colors flex-shrink-0 disabled:bg-gray-600 disabled:cursor-not-allowed shadow"
+                                        >
+                                             {isFull ? 'Full' : isMember ? 'Member' : hasRequested ? 'Request Sent' : 'Request to Join'}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
-                            {label.joinType === 'open' ? (
-                                <button 
-                                    onClick={() => joinLabel(label.id)} 
-                                    className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-md font-semibold transition-colors flex-shrink-0 disabled:bg-gray-500 disabled:cursor-not-allowed"
-                                    disabled={isFull || isMember}
-                                >
-                                    {isFull ? 'Full' : isMember ? 'Member' : 'Join'}
-                                </button>
-                            ) : (
-                                <button 
-                                    onClick={() => requestToJoinLabel(label.id)}
-                                    disabled={hasRequested || isFull || isMember}
-                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-md font-semibold transition-colors flex-shrink-0 disabled:bg-gray-500 disabled:cursor-not-allowed"
-                                >
-                                     {isFull ? 'Full' : isMember ? 'Member' : hasRequested ? 'Request Sent' : 'Request to Join'}
-                                </button>
-                            )}
-                        </div>
-                    )
-                })}
+                        );
+                    })
+                )}
             </div>
 
             {isCreating && <LabelModal onClose={() => setIsCreating(false)} />}
+            {selectedClan && <ClanDetailsModal label={selectedClan} onClose={() => setSelectedClan(null)} />}
         </>
     );
 };

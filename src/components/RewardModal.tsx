@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { CollectedSong } from '../types';
 import { Rarity } from '../types';
 import { getRarityStyles } from '../utils/rarity';
+import { DEFAULT_ALBUM_COVER, handleImageError } from '../utils/imageFallback';
 
 const PackRevealCard: React.FC<{ collectedSong: CollectedSong }> = ({ collectedSong }) => {
     const { song, serialNumber } = collectedSong;
@@ -54,7 +55,12 @@ const PackRevealCard: React.FC<{ collectedSong: CollectedSong }> = ({ collectedS
                 <p className="text-gray-300 text-lg">{song.artist.name}</p>
             </div>
             <div className="relative w-full aspect-square mx-auto my-2">
-              <img src={song.albumArtUrl} crossOrigin="anonymous" alt={song.album.title} className="w-full h-full rounded-lg object-cover" />
+              <img 
+                src={song.albumArtUrl || DEFAULT_ALBUM_COVER} 
+                onError={handleImageError} 
+                alt={song.album.title} 
+                className="w-full h-full rounded-lg object-cover" 
+              />
                {isShiny && <div className="absolute inset-0 rounded-lg holographic-overlay" style={{opacity: 0.5, backgroundBlendMode: 'overlay'}}></div>}
             </div>
              <div className="text-center text-xs text-gray-400">{song.album.title}</div>

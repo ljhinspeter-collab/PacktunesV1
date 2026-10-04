@@ -5,6 +5,7 @@ import type { RecordLabel, User, Trophy, Song, CollectedSong } from '../types';
 import { dataService } from '../services/dataService';
 import { getTrackDetails } from '../services/musicService';
 import { SongPreviewModal } from '../components/SongPreviewModal';
+import { ClanDetailsModal } from '../components/ClanDetailsModal';
 import { db } from '../services/firebase';
 import { collectionGroup, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
 
@@ -12,6 +13,7 @@ type HallTab = 'champions' | 'jailbroken' | 'records';
 
 const ChampionsView: React.FC = () => {
     const { recordLabels } = useContext(UserContext)!;
+    const [selectedClan, setSelectedClan] = useState<RecordLabel | null>(null);
 
     const champions = useMemo(() => {
         const champLabels: { label: RecordLabel, trophy: Trophy }[] = [];
@@ -30,17 +32,25 @@ const ChampionsView: React.FC = () => {
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {champions.map(({ label, trophy }) => (
-                <div key={`${label.id}-${trophy.eventId}`} className="iridescent-border-bg rounded-xl p-4 flex flex-col items-center text-center">
-                    <img src={label.pfpUrl} alt={label.name} className="w-24 h-24 rounded-full object-cover border-4 border-gray-900 mb-3" />
-                    <h4 className="text-xl font-bold">{label.name}</h4>
-                    <p className="text-sm text-gray-400 mt-2">Crowned champions of</p>
-                    <p className="font-semibold text-indigo-300">{trophy.eventName}</p>
-                    <p className="text-xs text-gray-500 mt-1">{new Date(trophy.date).toLocaleDateString()}</p>
-                </div>
-            ))}
-        </div>
+        <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {champions.map(({ label, trophy }) => (
+                    <div 
+                        key={`${label.id}-${trophy.eventId}`} 
+                        onClick={() => setSelectedClan(label)}
+                        className="iridescent-border-bg rounded-xl p-4 flex flex-col items-center text-center cursor-pointer hover:scale-105 transition-transform group shadow-lg"
+                    >
+                        <img src={label.pfpUrl} alt={label.name} className="w-24 h-24 rounded-full object-cover border-4 border-gray-900 mb-3 shadow" />
+                        <h4 className="text-xl font-bold group-hover:text-indigo-300 transition-colors">{label.name}</h4>
+                        <p className="text-sm text-gray-400 mt-2">Crowned champions of</p>
+                        <p className="font-semibold text-indigo-300">{trophy.eventName}</p>
+                        <p className="text-xs text-gray-500 mt-1">{new Date(trophy.date).toLocaleDateString()}</p>
+                        <span className="mt-3 text-xs text-indigo-400 font-semibold group-hover:underline">View Clan Members →</span>
+                    </div>
+                ))}
+            </div>
+            {selectedClan && <ClanDetailsModal label={selectedClan} onClose={() => setSelectedClan(null)} />}
+        </>
     );
 };
 

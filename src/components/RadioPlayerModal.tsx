@@ -3,7 +3,8 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import type { Mixtape, User, CollectedSong } from '../types';
 import { PlayIcon, PauseIcon } from './icons';
 import { dataService } from '../services/dataService';
-import { getTrackDetails } from '../services/musicService';
+import { getSongDetailsWithFallback } from '../services/musicService';
+import { DEFAULT_ALBUM_COVER, handleImageError } from '../utils/imageFallback';
 
 
 const SkipNextIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -61,11 +62,23 @@ export const RadioPlayerModal: React.FC<{ mixtape: Mixtape, user: User, onClose:
 
         let isMounted = true;
         setIsLoadingUrl(true);
-        getTrackDetails(currentTrack.song.id).then(freshSong => {
-            if (isMounted && freshSong) {
-                setLivePreviewUrl(freshSong.previewUrl);
+        getSongDetailsWithFallback(currentTrack.song).then(freshSong => {
+            if (isMounted) {
+                if (freshSong && freshSong.previewUrl) {
+                    setLivePreviewUrl(freshSong.previewUrl);
+                    if (freshSong.albumArtUrl && !currentTrack.song.albumArtUrl) {
+                        currentTrack.song.albumArtUrl = freshSong.albumArtUrl;
+                    }
+                } else if (currentTrack.song.previewUrl) {
+                    setLivePreviewUrl(currentTrack.song.previewUrl);
+                }
+                setIsLoadingUrl(false);
             }
-             if (isMounted) {
+        }).catch(() => {
+            if (isMounted) {
+                if (currentTrack.song.previewUrl) {
+                    setLivePreviewUrl(currentTrack.song.previewUrl);
+                }
                 setIsLoadingUrl(false);
             }
         });
@@ -75,7 +88,10 @@ export const RadioPlayerModal: React.FC<{ mixtape: Mixtape, user: User, onClose:
 
      // Effect to manage audio element when live URL is ready
     useEffect(() => {
-        if (!livePreviewUrl) return;
+        if (!livePreviewUrl || livePreviewUrl.trim() === '') {
+            setIsPlaying(false);
+            return;
+        }
         
         const audio = new Audio(livePreviewUrl);
         audioRef.current = audio;
@@ -95,8 +111,7 @@ export const RadioPlayerModal: React.FC<{ mixtape: Mixtape, user: User, onClose:
         audio.addEventListener('timeupdate', handleTimeUpdate);
         
         if (wasPlayingRef.current) {
-            audio.play().catch(e => {
-                console.error("Failed to autoplay next track:", e.message);
+            audio.play().catch(() => {
                 setIsPlaying(false);
                 wasPlayingRef.current = false;
             });
@@ -116,10 +131,12 @@ export const RadioPlayerModal: React.FC<{ mixtape: Mixtape, user: User, onClose:
 
     const togglePlayPause = () => {
         const audio = audioRef.current;
-        if (!audio) return;
+        if (!audio || !livePreviewUrl) return;
 
         if (audio.paused) {
-            audio.play().catch(e => console.error("Audio playback failed:", e.message));
+            audio.play().catch(() => {
+                setIsPlaying(false);
+            });
         } else {
             audio.pause();
         }
@@ -145,8 +162,9 @@ export const RadioPlayerModal: React.FC<{ mixtape: Mixtape, user: User, onClose:
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content w-full max-w-sm bg-gray-800/80 backdrop-blur-lg rounded-xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
                 <img 
-                    src={currentTrack.song.albumArtUrl} 
+                    src={currentTrack.song.albumArtUrl || DEFAULT_ALBUM_COVER} 
                     alt={currentTrack.song.album.title}
+                    onError={handleImageError}
                     className="w-48 h-48 rounded-lg object-cover mx-auto mb-6 shadow-lg"
                 />
 

@@ -61,7 +61,7 @@ const MasteryProgressBar: React.FC<{ mastery: ArtistMastery, onClick: () => void
 export const ArtistMasteryView: React.FC = () => {
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [selectedArtistMastery, setSelectedArtistMastery] = useState<(ArtistMastery & { artistId: string }) | null>(null);
-    const { currentUser } = useContext(UserContext)!;
+    const { currentUser, recalculateCollectionMastery } = useContext(UserContext)!;
 
     const sortedMastery = useMemo(() => {
         if (!currentUser) return [];
@@ -106,7 +106,13 @@ export const ArtistMasteryView: React.FC = () => {
             <div className="text-center mb-6">
                 <CrownIcon className="w-10 h-10 text-yellow-400 mx-auto mb-2" />
                 <h3 className="text-2xl font-bold">Artist Mastery</h3>
-                <p className="text-gray-400">Level up your favorite artists by collecting their songs.</p>
+                <p className="text-gray-400 mb-3">Level up your favorite artists by collecting their songs.</p>
+                <button
+                    onClick={recalculateCollectionMastery}
+                    className="px-4 py-2 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:scale-105 active:scale-95"
+                >
+                    🔄 Sync Collection Mastery
+                </button>
             </div>
 
             <div className="flex items-center justify-center gap-2 mb-6 p-1 bg-gray-700 rounded-full text-white w-max mx-auto">

@@ -2,6 +2,7 @@ import React from 'react';
 import type { CollectedSong } from '../types';
 import { Rarity } from '../types';
 import { PlayIcon, DiamondIcon, SparklesIcon } from './icons';
+import { DEFAULT_ALBUM_COVER, handleImageError, isPlaceholderCover } from '../utils/imageFallback';
 
 interface SongListItemProps {
   collectedSong: CollectedSong;
@@ -61,7 +62,12 @@ const SongListItemComponent: React.FC<SongListItemProps> = ({ collectedSong, onC
   
   return (
     <button onClick={() => onClick(collectedSong)} className="w-full flex items-center gap-4 p-2 rounded-lg hover:bg-gray-700/50 transition-colors">
-      <img src={song.albumArtUrl} crossOrigin="anonymous" alt={song.album.title} className="w-14 h-14 rounded-md object-cover flex-shrink-0" />
+      <img
+        src={!isPlaceholderCover(song.albumArtUrl) ? song.albumArtUrl : DEFAULT_ALBUM_COVER}
+        alt={song.album.title}
+        onError={handleImageError}
+        className="w-14 h-14 rounded-md object-cover flex-shrink-0"
+      />
       <div className="flex-grow text-left truncate">
         <p className="font-semibold text-white truncate text-base">{song.title}</p>
         <p className="text-sm text-gray-400 truncate">{song.artist.name}</p>

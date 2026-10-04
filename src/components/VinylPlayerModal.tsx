@@ -3,7 +3,8 @@ import React, { useState, useRef, useEffect, useContext, useCallback } from 'rea
 import type { Vinyl, Song } from '../types';
 import { PlayIcon, PauseIcon, StarIcon } from './icons';
 import { UserContext } from '../contexts/UserContext';
-import { getTrackDetails } from '../services/musicService';
+import { getSongDetailsWithFallback, fetchAlbumArtwork } from '../services/musicService';
+import { DEFAULT_VINYL_COVER, handleImageError, isPlaceholderCover } from '../utils/imageFallback';
 
 const SkipNextIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24" fill="currentColor" className={className || "w-6 h-6"}>
@@ -25,14 +26,39 @@ export const VinylPlayerModal: React.FC<{ vinyl: Vinyl, onClose: () => void }> =
     const [isPlaying, setIsPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
     const audioRef = useRef<HTMLAudioElement | null>(null);
-    const { currentUser, updateShowcase } = useContext(UserContext)!;
+    const { currentUser, updateCurrentUser, updateShowcase } = useContext(UserContext)!;
     const wasPlayingRef = useRef(false);
+
+    const [albumCoverUrl, setAlbumCoverUrl] = useState<string>(
+        vinyl.albumArtUrl && !isPlaceholderCover(vinyl.albumArtUrl)
+            ? vinyl.albumArtUrl
+            : ''
+    );
 
     const [livePreviewUrl, setLivePreviewUrl] = useState<string | null>(null);
     const [isLoadingUrl, setIsLoadingUrl] = useState(true);
 
     const currentTrack = vinyl.tracks[currentTrackIndex];
     const isPinned = currentUser!.showcase?.proudestVinylIds?.includes(vinyl.albumId);
+
+    // Resolve Vinyl Album Cover dynamically if missing
+    useEffect(() => {
+        let isMounted = true;
+        const needsCover = !albumCoverUrl || isPlaceholderCover(albumCoverUrl);
+        if (needsCover) {
+            fetchAlbumArtwork(vinyl.artistName, vinyl.albumName).then(art => {
+                if (isMounted && art && !isPlaceholderCover(art)) {
+                    setAlbumCoverUrl(art);
+                    vinyl.albumArtUrl = art;
+                    if (currentUser) {
+                        const updatedVinyls = (currentUser.vinyls || []).map(v => v.albumId === vinyl.albumId ? { ...v, albumArtUrl: art } : v);
+                        updateCurrentUser({ vinyls: updatedVinyls }).catch(() => {});
+                    }
+                }
+            });
+        }
+        return () => { isMounted = false; };
+    }, [vinyl.albumId, vinyl.artistName, vinyl.albumName, albumCoverUrl]);
 
     const handleNext = useCallback(() => {
         setCurrentTrackIndex(prev => (prev + 1) % vinyl.tracks.length);
@@ -47,11 +73,20 @@ export const VinylPlayerModal: React.FC<{ vinyl: Vinyl, onClose: () => void }> =
         if (!currentTrack) return;
         let isMounted = true;
         setIsLoadingUrl(true);
-        getTrackDetails(currentTrack.id).then(freshSong => {
-            if (isMounted && freshSong) {
-                setLivePreviewUrl(freshSong.previewUrl);
-            }
+        getSongDetailsWithFallback(currentTrack).then(freshSong => {
             if (isMounted) {
+                if (freshSong && freshSong.previewUrl) {
+                    setLivePreviewUrl(freshSong.previewUrl);
+                } else if (currentTrack.previewUrl) {
+                    setLivePreviewUrl(currentTrack.previewUrl);
+                }
+                setIsLoadingUrl(false);
+            }
+        }).catch(() => {
+            if (isMounted) {
+                if (currentTrack.previewUrl) {
+                    setLivePreviewUrl(currentTrack.previewUrl);
+                }
                 setIsLoadingUrl(false);
             }
         });
@@ -60,7 +95,10 @@ export const VinylPlayerModal: React.FC<{ vinyl: Vinyl, onClose: () => void }> =
 
     // Effect to manage audio element when live URL is ready
     useEffect(() => {
-        if (!livePreviewUrl) return;
+        if (!livePreviewUrl || livePreviewUrl.trim() === '') {
+            setIsPlaying(false);
+            return;
+        }
 
         const audio = new Audio(livePreviewUrl);
         audioRef.current = audio;
@@ -80,8 +118,7 @@ export const VinylPlayerModal: React.FC<{ vinyl: Vinyl, onClose: () => void }> =
         audio.addEventListener('timeupdate', handleTimeUpdate);
 
         if (wasPlayingRef.current) {
-            audio.play().catch(e => {
-                console.error("Failed to autoplay next track:", e.message);
+            audio.play().catch(() => {
                 setIsPlaying(false); 
                 wasPlayingRef.current = false;
             });
@@ -101,9 +138,11 @@ export const VinylPlayerModal: React.FC<{ vinyl: Vinyl, onClose: () => void }> =
 
     const togglePlayPause = () => {
         const audio = audioRef.current;
-        if (!audio) return;
+        if (!audio || !livePreviewUrl) return;
         if (audio.paused) {
-            audio.play().catch(e => console.error("Audio playback failed:", e.message));
+            audio.play().catch(() => {
+                setIsPlaying(false);
+            });
         } else {
             audio.pause();
         }
@@ -131,8 +170,9 @@ export const VinylPlayerModal: React.FC<{ vinyl: Vinyl, onClose: () => void }> =
                 <div className="relative w-64 h-64 mx-auto mb-6">
                     <div className="absolute inset-0 bg-black rounded-full shadow-lg"></div>
                     <img 
-                        src={vinyl.albumArtUrl} 
+                        src={albumCoverUrl && !isPlaceholderCover(albumCoverUrl) ? albumCoverUrl : (!isPlaceholderCover(vinyl.albumArtUrl) ? vinyl.albumArtUrl : DEFAULT_VINYL_COVER)} 
                         alt={vinyl.albumName}
+                        onError={(e) => handleImageError(e, DEFAULT_VINYL_COVER)}
                         className={`absolute inset-4 w-56 h-56 rounded-full object-cover transition-transform duration-1000 ${isPlaying ? 'animate-[spin_10s_linear_infinite]' : ''}`}
                         style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
                     />

@@ -85,6 +85,7 @@ export interface Showcase {
   favoriteSongId?: string; // CollectedSong ID
   rarestSongId?: string; // CollectedSong ID
   proudestVinylIds?: string[]; // Array of Vinyl albumIds
+  canvasSongIds?: string[]; // Array of CollectedSong IDs for Canvas Showcase
 }
 
 export interface Title {
@@ -494,6 +495,7 @@ export interface UserContextType {
     // New
     resyncGoldenVinyls: () => Promise<void>;
     resyncBadgesAndMastery: () => Promise<void>;
+    recalculateCollectionMastery: () => Promise<void>;
 
     // Pack Opening
     openNewPack: () => Promise<void>;

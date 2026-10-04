@@ -75,19 +75,42 @@ class DataService {
     }
     
      async getUsersByIds(userIds: string[]): Promise<User[]> {
-        if (userIds.length === 0) return [];
+        if (!userIds || userIds.length === 0) return [];
+        const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
         const users: User[] = [];
+        const foundIds = new Set<string>();
+
         const chunkSize = 30; // Firestore 'in' query limit is 30
-        for (let i = 0; i < userIds.length; i += chunkSize) {
-            const chunk = userIds.slice(i, i + chunkSize);
+        for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+            const chunk = uniqueIds.slice(i, i + chunkSize);
             if (chunk.length > 0) {
-                const q = query(collections.users, where('id', 'in', chunk));
-                const querySnapshot = await getDocs(q);
-                querySnapshot.forEach(doc => {
-                    users.push(doc.data() as User);
-                });
+                try {
+                    const q = query(collections.users, where('id', 'in', chunk));
+                    const querySnapshot = await getDocs(q);
+                    querySnapshot.forEach(d => {
+                        const u = { id: d.id, ...d.data() } as User;
+                        users.push(u);
+                        foundIds.add(u.id);
+                    });
+                } catch {}
             }
         }
+
+        // Direct getDoc fallback for any IDs not captured by the query
+        const missingIds = uniqueIds.filter(id => !foundIds.has(id));
+        if (missingIds.length > 0) {
+            await Promise.allSettled(missingIds.map(async (id) => {
+                try {
+                    const dSnap = await getDoc(doc(db, 'users', id));
+                    if (dSnap.exists()) {
+                        const u = { id: dSnap.id, ...dSnap.data() } as User;
+                        users.push(u);
+                        foundIds.add(u.id);
+                    }
+                } catch {}
+            }));
+        }
+
         return users;
     }
 
@@ -229,7 +252,12 @@ class DataService {
     
     // --- Global Activity ---
     async addGlobalActivity(activity: Omit<GlobalActivity, 'id'>): Promise<void> {
-        await addDoc(collections.globalActivity, activity);
+        try {
+            const sanitized = JSON.parse(JSON.stringify(activity));
+            await addDoc(collections.globalActivity, sanitized);
+        } catch (error) {
+            console.warn("Could not save global activity to Firestore:", error);
+        }
     }
 
     // --- Events ---
