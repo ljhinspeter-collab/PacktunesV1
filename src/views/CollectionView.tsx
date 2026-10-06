@@ -26,6 +26,8 @@ import { SongCard } from '../components/SongCard';
 import { CanvasShowcaseView } from '../components/CanvasShowcaseView';
 import { ManageVinylShelfModal } from '../components/ManageVinylShelfModal';
 import { DEFAULT_VINYL_COVER, DEFAULT_ALBUM_COVER, handleImageError, isPlaceholderCover } from '../utils/imageFallback';
+import { getTop100Leaderboard } from '../services/playerRankingService';
+import { dataService } from '../services/dataService';
 
 const ShowcaseItem: React.FC<{
     title: string;
@@ -188,12 +190,38 @@ const VinylShelfSection: React.FC<{
 };
 
 const ProfileEditModal: React.FC<{ user: User, onSave: (data: Partial<User>) => void, onClose: () => void }> = ({ user, onSave, onClose }) => {
+    const userContext = useContext(UserContext);
+    const users = userContext?.users || [];
     const [name, setName] = useState(user.name);
     const [bio, setBio] = useState(user.bio);
     const [pfpUrl, setPfpUrl] = useState(user.pfpUrl);
+    const [nameError, setNameError] = useState<string | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
-    const handleSave = () => {
-        onSave({ name, bio, pfpUrl });
+    const handleSave = async () => {
+        const trimmedName = name.trim();
+        if (!trimmedName) {
+            setNameError("Username cannot be empty.");
+            return;
+        }
+
+        if (trimmedName.toLowerCase() !== user.name.trim().toLowerCase()) {
+            const isTakenLocally = users.some(u => u.id !== user.id && (u.name || '').trim().toLowerCase() === trimmedName.toLowerCase());
+            if (isTakenLocally) {
+                setNameError("Username taken. Please choose a different username.");
+                return;
+            }
+
+            setIsSaving(true);
+            const isTakenRemote = await dataService.isUsernameTaken(trimmedName, user.id);
+            setIsSaving(false);
+            if (isTakenRemote) {
+                setNameError("Username taken. Please choose a different username.");
+                return;
+            }
+        }
+
+        onSave({ name: trimmedName, bio, pfpUrl });
         onClose();
     };
 
@@ -203,8 +231,21 @@ const ProfileEditModal: React.FC<{ user: User, onSave: (data: Partial<User>) => 
                 <h3 className="text-2xl font-bold mb-4">Edit Profile</h3>
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
-                        <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                        <input 
+                            type="text" 
+                            value={name} 
+                            onChange={e => {
+                                setName(e.target.value);
+                                setNameError(null);
+                            }} 
+                            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 text-white" 
+                        />
+                        {nameError && (
+                            <p className="text-xs text-red-400 mt-1 font-semibold flex items-center gap-1">
+                                <span>⚠️</span> {nameError}
+                            </p>
+                        )}
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">Bio</label>
@@ -216,8 +257,10 @@ const ProfileEditModal: React.FC<{ user: User, onSave: (data: Partial<User>) => 
                     </div>
                 </div>
                 <div className="flex justify-end gap-3 mt-6">
-                    <button onClick={onClose} className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-md">Cancel</button>
-                    <button onClick={handleSave} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-md">Save</button>
+                    <button onClick={onClose} disabled={isSaving} className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-md">Cancel</button>
+                    <button onClick={handleSave} disabled={isSaving} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-md font-bold text-white flex items-center gap-2">
+                        {isSaving ? 'Verifying...' : 'Save'}
+                    </button>
                 </div>
             </div>
         </div>
@@ -610,6 +653,16 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
     return user.earnedTitles.find(t => t.id === user.activeTitleId) || null;
   }, [user.activeTitleId, user.earnedTitles]);
 
+  const userRankInfo = useMemo(() => {
+    const { currentUserRank, currentUserScore, leaderboard } = getTop100Leaderboard(user, collection);
+    const entry = leaderboard.find(l => l.id === user.id || l.name.toLowerCase() === (user.name || '').toLowerCase());
+    return {
+      rank: entry ? entry.rank : currentUserRank,
+      score: entry ? entry.score : currentUserScore,
+      tier: entry ? entry.tier : 'Master Collector',
+    };
+  }, [user, collection]);
+
   const handlePinVinyl = (vinylId: string) => {
       if (!isCurrentUser) return;
       const currentPins = user.showcase?.proudestVinylIds || [];
@@ -686,7 +739,14 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
         <div className="flex-grow w-full">
           <div className="flex justify-between items-start">
               <div className="text-center md:text-left">
-                <h2 className="text-3xl font-bold">{user.name}</h2>
+                <div className="flex items-center gap-2.5 flex-wrap justify-center md:justify-start">
+                  <h2 className="text-3xl font-bold">{user.name}</h2>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-yellow-500/20 via-amber-500/20 to-purple-500/20 border border-yellow-500/50 shadow-md">
+                    <span className="text-sm">🏆</span>
+                    <span className="text-xs font-black text-yellow-300 font-mono">Rank #{userRankInfo.rank}</span>
+                    <span className="text-[10px] text-gray-400 font-bold">• {userRankInfo.score.toLocaleString()} pts</span>
+                  </div>
+                </div>
                 {activeTitle && (
                     <TitleDisplay 
                         title={activeTitle} 

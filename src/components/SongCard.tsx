@@ -16,7 +16,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ collectedSong, onClick }) 
 
   const isShinyMythic = song.rarity === Rarity.Mythic && song.isShiny;
 
-  let containerClasses = 'relative aspect-[3/4] w-full rounded-lg shadow-lg overflow-hidden transition-transform duration-300 transform hover:scale-105 cursor-pointer';
+  let containerClasses = 'relative aspect-[3/4] w-full rounded-2xl shadow-lg overflow-hidden transition-transform duration-300 transform hover:scale-105 cursor-pointer';
   let glowClass = '';
 
   if (song.rarity === Rarity.Jailbroken) {

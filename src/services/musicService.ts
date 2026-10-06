@@ -243,10 +243,22 @@ export const fetchAlbumArtwork = async (artistName: string, albumName: string): 
     return null;
 };
 
+const KNOWN_EXPLICIT_AUDIO: Record<string, string> = {
+    'kencarsonsuccubus': '/audio/kencarson_succubus_explicit.mp3',
+    'succubus': '/audio/kencarson_succubus_explicit.mp3',
+    'lilnasxindustrybaby': '/audio/lilnasx_industrybaby_explicit.mp3',
+    'industrybaby': '/audio/lilnasx_industrybaby_explicit.mp3',
+};
+
 export const getSongDetailsWithFallback = async (song: { id?: string; title: string; artist?: { name: string; id?: string }; album?: { title?: string } }): Promise<Song | null> => {
     let resultSong: Song | null = null;
     const artistName = (song.artist?.name || '').trim();
     const cleanTitle = (song.title || '').replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim();
+    const normKey = `${artistName.toLowerCase().replace(/[^a-z0-9]/g, '')}${cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+    const normTitleKey = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // Check curated explicit lossless audio first
+    const explicitAudio = KNOWN_EXPLICIT_AUDIO[normKey] || KNOWN_EXPLICIT_AUDIO[normTitleKey];
 
     // 1. Direct Deezer track lookup (only accept if valid preview and non-placeholder cover)
     if (song.id && /^\d+$/.test(song.id)) {
@@ -268,8 +280,10 @@ export const getSongDetailsWithFallback = async (song: { id?: string; title: str
             const searchUrl = `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=10&output=jsonp`;
             const searchData = await jsonp(searchUrl);
             if (searchData && Array.isArray(searchData.data) && searchData.data.length > 0) {
-                // Find track with valid preview and non-placeholder cover
-                const match = searchData.data.find((item: any) => item && item.preview && !isPlaceholderCover(extractCoverUrl(item.album, item))) || 
+                // Find track prioritizing EXPLICIT lyrics and non-placeholder cover
+                const match = searchData.data.find((item: any) => item && item.explicit_lyrics === true && item.preview && !isPlaceholderCover(extractCoverUrl(item.album, item))) ||
+                              searchData.data.find((item: any) => item && item.explicit_lyrics === true && item.preview) ||
+                              searchData.data.find((item: any) => item && item.preview && !isPlaceholderCover(extractCoverUrl(item.album, item))) || 
                               searchData.data.find((item: any) => item && item.preview) || 
                               searchData.data[0];
                 if (match) {
@@ -290,7 +304,9 @@ export const getSongDetailsWithFallback = async (song: { id?: string; title: str
             const searchUrl = `https://api.deezer.com/search?q=${encodeURIComponent(cleanTitle)}&limit=10&output=jsonp`;
             const searchData = await jsonp(searchUrl);
             if (searchData && Array.isArray(searchData.data) && searchData.data.length > 0) {
-                const match = searchData.data.find((item: any) => item && item.preview && !isPlaceholderCover(extractCoverUrl(item.album, item))) || 
+                const match = searchData.data.find((item: any) => item && item.explicit_lyrics === true && item.preview && !isPlaceholderCover(extractCoverUrl(item.album, item))) ||
+                              searchData.data.find((item: any) => item && item.explicit_lyrics === true && item.preview) ||
+                              searchData.data.find((item: any) => item && item.preview && !isPlaceholderCover(extractCoverUrl(item.album, item))) || 
                               searchData.data.find((item: any) => item && item.preview) || 
                               searchData.data[0];
                 if (match) {
@@ -310,11 +326,13 @@ export const getSongDetailsWithFallback = async (song: { id?: string; title: str
     if (lacksCover || lacksPreview) {
         try {
             const itunesQuery = encodeURIComponent(`${artistName} ${cleanTitle}`.trim());
-            const res = await fetch(`https://itunes.apple.com/search?term=${itunesQuery}&entity=song&limit=5`);
+            const res = await fetch(`https://itunes.apple.com/search?term=${itunesQuery}&entity=song&limit=10`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.results && data.results.length > 0) {
-                    const item = data.results.find((r: any) => (r.previewUrl || r.artworkUrl100) && (artistName.length < 3 || r.artistName?.toLowerCase().includes(artistName.toLowerCase()) || artistName.toLowerCase().includes(r.artistName?.toLowerCase()))) || data.results[0];
+                    const item = data.results.find((r: any) => r.trackExplicitness === 'explicit' && (r.previewUrl || r.artworkUrl100) && (artistName.length < 3 || r.artistName?.toLowerCase().includes(artistName.toLowerCase()) || artistName.toLowerCase().includes(r.artistName?.toLowerCase()))) ||
+                                 data.results.find((r: any) => (r.previewUrl || r.artworkUrl100) && (artistName.length < 3 || r.artistName?.toLowerCase().includes(artistName.toLowerCase()) || artistName.toLowerCase().includes(r.artistName?.toLowerCase()))) || 
+                                 data.results[0];
                     const itunesArt = item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '600x600bb').replace('100x100', '600x600') : '';
                     const itunesPreview = item.previewUrl || '';
                     const itunesAlbum = item.collectionName || song.album?.title || 'Single';
@@ -344,6 +362,10 @@ export const getSongDetailsWithFallback = async (song: { id?: string; title: str
                 }
             }
         } catch {}
+    }
+
+    if (resultSong && explicitAudio) {
+        resultSong.previewUrl = explicitAudio;
     }
 
     return resultSong;

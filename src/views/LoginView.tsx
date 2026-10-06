@@ -1,11 +1,12 @@
 import React, { useState, useContext } from 'react';
 import { UserContext } from '../contexts/UserContext';
 import { VinylIcon } from '../components/icons';
+import { dataService } from '../services/dataService';
 
 type AuthMode = 'signIn' | 'signUp';
 
 export const LoginView: React.FC = () => {
-    const { signIn, signUp, continueAsGuest } = useContext(UserContext)!;
+    const { signIn, signUp, continueAsGuest, users } = useContext(UserContext)!;
     const [mode, setMode] = useState<AuthMode>('signIn');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -22,12 +23,29 @@ export const LoginView: React.FC = () => {
             if (mode === 'signIn') {
                 await signIn(email, password);
             } else {
-                if (!name.trim()) {
-                    setError("Please enter a name.");
+                const trimmedName = name.trim();
+                if (!trimmedName) {
+                    setError("Please enter a username.");
                     setIsLoading(false);
                     return;
                 }
-                await signUp(email, password, name, bio);
+
+                // Check username uniqueness
+                const isTakenLocally = (users || []).some(u => (u.name || '').trim().toLowerCase() === trimmedName.toLowerCase());
+                if (isTakenLocally) {
+                    setError("Username taken. Please choose a different username.");
+                    setIsLoading(false);
+                    return;
+                }
+
+                const isTakenRemote = await dataService.isUsernameTaken(trimmedName);
+                if (isTakenRemote) {
+                    setError("Username taken. Please choose a different username.");
+                    setIsLoading(false);
+                    return;
+                }
+
+                await signUp(email, password, trimmedName, bio);
             }
         } catch (authError: any) {
             let friendlyMessage = "An authentication error occurred. Please try again.";

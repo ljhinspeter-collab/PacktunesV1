@@ -117,9 +117,9 @@ export const CanvasShowcaseCard: React.FC<CanvasCardProps> = ({
   }, [song.artist.name, song.title]);
 
   const getBorderClass = () => {
-    if (isJailbroken) return 'jailbroken-glow jailbroken-border border-2';
-    if (isPrestige) return 'prestige-glow prestige-border border-2';
-    if (isShiny) return 'mythic-glow border-2 border-cyan-400';
+    if (isJailbroken) return 'jailbroken-glow border-2 border-cyan-400 shadow-cyan-500/30';
+    if (isPrestige) return 'prestige-glow border-2 border-yellow-300 shadow-yellow-300/30';
+    if (isShiny) return 'mythic-glow border-2 border-cyan-400 shadow-cyan-400/30';
     if (isMythic) return 'border-2 border-yellow-400 shadow-yellow-500/30';
     return 'border border-gray-700 hover:border-gray-500';
   };
@@ -135,15 +135,15 @@ export const CanvasShowcaseCard: React.FC<CanvasCardProps> = ({
     >
       {/* Video Canvas or Fallback Image Background */}
       {canvasUrl ? (
-        <div className="absolute inset-0 w-full h-full bg-black">
-          <CanvasVideoPlayer url={canvasUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" isWideMode={isWideMode} />
+        <div className="absolute inset-0 w-full h-full bg-black rounded-2xl overflow-hidden">
+          <CanvasVideoPlayer url={canvasUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-2xl" isWideMode={isWideMode} />
         </div>
       ) : (
         <img
           src={song.albumArtUrl || DEFAULT_ALBUM_COVER}
           alt={song.title}
           onError={handleImageError}
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 filter brightness-90"
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 filter brightness-90 rounded-2xl"
         />
       )}
 

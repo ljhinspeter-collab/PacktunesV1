@@ -54,6 +54,13 @@ const CreateTradeModal: React.FC<{ song: CollectedSong, onClose: () => void }> =
     )
 };
 
+const formatTime = (seconds: number): string => {
+    if (!seconds || isNaN(seconds) || !isFinite(seconds) || seconds < 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const rem = Math.floor(seconds % 60);
+    return `${mins}:${rem.toString().padStart(2, '0')}`;
+};
+
 const SongPreview: React.FC<{
     collectedSong: CollectedSong;
     onClose: () => void;
@@ -62,12 +69,29 @@ const SongPreview: React.FC<{
     onSeek: (e: React.MouseEvent<HTMLDivElement>) => void;
     isPlaying: boolean;
     progress: number;
+    currentTime: number;
+    duration: number;
     mythicOwnerName: string;
     isLoadingUrl: boolean;
     canvasVideoUrl: string | null;
     isCanvasActive: boolean;
     onToggleCanvas: () => void;
-}> = ({ collectedSong, onClose, showTradeButton, onTogglePlayPause, onSeek, isPlaying, progress, mythicOwnerName, isLoadingUrl, canvasVideoUrl, isCanvasActive, onToggleCanvas }) => {
+}> = ({ 
+    collectedSong, 
+    onClose, 
+    showTradeButton, 
+    onTogglePlayPause, 
+    onSeek, 
+    isPlaying, 
+    progress, 
+    currentTime,
+    duration,
+    mythicOwnerName, 
+    isLoadingUrl, 
+    canvasVideoUrl, 
+    isCanvasActive, 
+    onToggleCanvas
+}) => {
     const { currentUser, updateCurrentUser, updateShowcase } = useContext(UserContext)!;
     const { song, serialNumber, isPrestige } = collectedSong;
     const isMythic = song.rarity === Rarity.Mythic;
@@ -230,15 +254,22 @@ const SongPreview: React.FC<{
             <div className={containerClasses} onClick={(e) => e.stopPropagation()}>
                 {/* 100% Full-Fill Video Canvas / Artwork Background */}
                 {canvasVideoUrl && isCanvasActive ? (
-                    <div className="absolute inset-0 w-full h-full bg-black">
-                        <CanvasVideoPlayer url={canvasVideoUrl} className="w-full h-full object-cover" isWideMode={isWideMode} />
+                    <div className="absolute inset-0 w-full h-full bg-black rounded-[inherit] overflow-hidden">
+                        <CanvasVideoPlayer 
+                            url={canvasVideoUrl} 
+                            className="w-full h-full object-cover rounded-[inherit]" 
+                            isWideMode={isWideMode}
+                            isPlaying={isPlaying}
+                            isMuted={true}
+                            currentTime={currentTime}
+                        />
                     </div>
                 ) : (
                     <img
                         src={!isPlaceholderCover(song.albumArtUrl) ? song.albumArtUrl : DEFAULT_ALBUM_COVER}
                         alt={song.title}
                         onError={handleImageError}
-                        className="absolute inset-0 w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full object-cover rounded-[inherit]"
                     />
                 )}
 
@@ -499,12 +530,12 @@ const SongPreview: React.FC<{
                             <div className="text-center text-gray-400 text-sm py-2">Loading Preview...</div>
                         ) : (
                             <>
-                                <div className="w-full bg-black/30 rounded-full h-2 cursor-pointer" onClick={onSeek}>
-                                    <div className="bg-indigo-400 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
+                                <div className="w-full bg-black/30 rounded-full h-2 cursor-pointer relative overflow-hidden" onClick={onSeek}>
+                                    <div className="bg-indigo-400 h-2 rounded-full transition-all duration-100" style={{ width: `${progress}%` }}></div>
                                 </div>
-                                <div className="flex justify-between text-xs text-gray-400 mt-1">
-                                    <span>{new Date(progress / 100 * 30 * 1000).toISOString().substr(14, 5)}</span>
-                                    <span>0:30</span>
+                                <div className="flex justify-between text-xs text-gray-400 mt-1 font-mono">
+                                    <span>{formatTime(currentTime)}</span>
+                                    <span>{formatTime(duration)}</span>
                                 </div>
                             </>
                         )}
@@ -580,6 +611,8 @@ export const SongPreviewModal: React.FC<{
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(30);
     const [mythicOwnerName, setMythicOwnerName] = useState('loading...');
     const userContext = useContext(UserContext);
 
@@ -683,36 +716,39 @@ export const SongPreviewModal: React.FC<{
         return () => { isMounted = false; };
     }, [collectedSong.song.id, collectedSong.song.rarity, userContext?.findMythicOwnerName]);
 
-    // Create and manage audio element, now dependent on the live URL
+    // Create and manage audio element
     useEffect(() => {
         if (!livePreviewUrl || livePreviewUrl.trim() === '') {
-            setIsPlaying(false);
             return; 
         }
 
         const audio = new Audio(livePreviewUrl);
         audioRef.current = audio;
-        audio.volume = 0.5;
+        audio.volume = 0.85;
 
         const handleTimeUpdate = () => {
             if (!audio.duration) return;
+            setCurrentTime(audio.currentTime);
+            setDuration(audio.duration);
             setProgress((audio.currentTime / audio.duration) * 100);
         };
         const handlePlay = () => setIsPlaying(true);
         const handlePause = () => setIsPlaying(false);
+        const handleEnded = () => {
+            setIsPlaying(false);
+            setProgress(0);
+            setCurrentTime(0);
+        };
         
         audio.addEventListener('timeupdate', handleTimeUpdate);
-        audio.addEventListener('ended', handlePause);
+        audio.addEventListener('ended', handleEnded);
         audio.addEventListener('play', handlePlay);
         audio.addEventListener('pause', handlePause);
-        
-        // Audio requires explicit user click on Play button to prevent stuttering
-        setIsPlaying(false);
         
         return () => {
             audio.pause();
             audio.removeEventListener('timeupdate', handleTimeUpdate);
-            audio.removeEventListener('ended', handlePause);
+            audio.removeEventListener('ended', handleEnded);
             audio.removeEventListener('play', handlePlay);
             audio.removeEventListener('pause', handlePause);
             audioRef.current = null;
@@ -721,28 +757,32 @@ export const SongPreviewModal: React.FC<{
 
     const togglePlayPause = () => {
         const audio = audioRef.current;
-        if (!audio || !livePreviewUrl) return;
-
-        if (audio.paused) {
-            audio.play().catch(() => {
+        if (!audio) return;
+        if (isPlaying) {
+            audio.pause();
+            setIsPlaying(false);
+        } else {
+            audio.play().then(() => {
+                setIsPlaying(true);
+            }).catch(() => {
                 setIsPlaying(false);
             });
-        } else {
-            audio.pause();
         }
     };
     
     const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-        const audio = audioRef.current;
-        if (!audio) return;
-
         const progressBar = e.currentTarget;
         const rect = progressBar.getBoundingClientRect();
         const clickPosition = e.clientX - rect.left;
-        const newTime = (clickPosition / progressBar.offsetWidth) * audio.duration;
+        const targetDuration = duration > 0 ? duration : (audioRef.current?.duration || 30);
+        const newTime = Math.max(0, Math.min(targetDuration, (clickPosition / progressBar.offsetWidth) * targetDuration));
         
         if (isFinite(newTime)) {
-             audio.currentTime = newTime;
+             setCurrentTime(newTime);
+             setProgress(targetDuration > 0 ? (newTime / targetDuration) * 100 : 0);
+             if (audioRef.current) {
+                 audioRef.current.currentTime = newTime;
+             }
         }
     };
 
@@ -756,6 +796,8 @@ export const SongPreviewModal: React.FC<{
             showTradeButton={showTradeButton}
             isPlaying={isPlaying}
             progress={progress}
+            currentTime={currentTime}
+            duration={duration}
             onTogglePlayPause={togglePlayPause}
             onSeek={handleSeek}
             mythicOwnerName={mythicOwnerName}

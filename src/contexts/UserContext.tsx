@@ -37,6 +37,71 @@ const XP_PER_RARITY = {
     [Rarity.Jailbroken]: 500,
 };
 
+const ensureSuccubusOnAccount = (targetUserId: string, targetUserName: string, list: CollectedSong[]): CollectedSong[] => {
+    const hasSuccubus = list.some(cs => 
+        (cs.song.title.toLowerCase().includes('succubus') && cs.song.artist.name.toLowerCase().includes('ken carson')) ||
+        cs.song.id === 'jb_bm_ken_carson_succubus' ||
+        cs.id.includes('succubus')
+    );
+    if (hasSuccubus) {
+        return list.map(cs => {
+            if (
+                (cs.song.title.toLowerCase().includes('succubus') && cs.song.artist.name.toLowerCase().includes('ken carson')) ||
+                cs.song.id === 'jb_bm_ken_carson_succubus' ||
+                cs.id.includes('succubus')
+            ) {
+                return {
+                    ...cs,
+                    song: {
+                        ...cs.song,
+                        previewUrl: '/audio/kencarson_succubus_explicit.mp3'
+                    }
+                };
+            }
+            return cs;
+        });
+    }
+
+    const succubusSong: CollectedSong = {
+        id: `ken_carson_succubus_jailbroken_${targetUserId}`,
+        song: {
+            id: 'jb_bm_ken_carson_succubus',
+            title: 'Succubus',
+            artist: {
+                id: '14316239',
+                name: 'Ken Carson',
+            },
+            album: {
+                id: 'alb_a_great_chaos',
+                title: 'A Great Chaos',
+            },
+            albumArtUrl: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/bf/fb/14/bffb1406-8c0c-db90-f21e-c6c747833076/23UMGIM92695.rgb.jpg/600x600bb.jpg',
+            previewUrl: '/audio/kencarson_succubus_explicit.mp3',
+            rarity: Rarity.Jailbroken,
+            isShiny: true,
+        },
+        serialNumber: 1,
+        ownerId: targetUserId,
+        isPrestige: false,
+        collectedAt: Date.now(),
+    };
+
+    const updated = [succubusSong, ...list];
+    try {
+        localStorage.setItem(`packtunes_collection_${targetUserId}`, JSON.stringify(updated));
+    } catch {}
+
+    if (db && targetUserId && targetUserId !== 'guest_user') {
+        setDoc(doc(db, 'users', targetUserId, 'collection', succubusSong.id), succubusSong).catch(() => {});
+        updateDoc(doc(db, 'users', targetUserId), {
+            collectionSize: updated.length,
+            jailbrokensCount: increment(1),
+        }).catch(() => {});
+    }
+
+    return updated;
+};
+
 export const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -54,6 +119,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [globalActivityFeed, setGlobalActivityFeed] = useState<GlobalActivity[]>([]);
     
     const [rewardPack, setRewardPack] = useState<CollectedSong[] | null>(null);
+    const [rewardPackInitialMode, setRewardPackInitialMode] = useState<'stack' | 'reveal_all'>('stack');
+    const [rewardPackTitle, setRewardPackTitle] = useState<string>('New Pack!');
     const [isOpeningPack, setIsOpeningPack] = useState(false);
     
     const [viewingUser, setViewingUserState] = useState<User | null>(null);
@@ -96,7 +163,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 if (saved) {
                     const parsed = JSON.parse(saved);
                     if (Array.isArray(parsed) && parsed.length > 0) {
-                        setCurrentUserCollection(parsed);
+                        const withSuccubus = ensureSuccubusOnAccount(userId, 'Collector', parsed);
+                        setCurrentUserCollection(withSuccubus);
                     }
                 }
             } catch {}
@@ -168,9 +236,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     }
                 });
                 const uniqueCollection = Array.from(map.values());
-                setCurrentUserCollection(uniqueCollection);
+                const withSuccubus = ensureSuccubusOnAccount(userId, 'Collector', uniqueCollection);
+                setCurrentUserCollection(withSuccubus);
                 try {
-                    localStorage.setItem(`packtunes_collection_${userId}`, JSON.stringify(uniqueCollection));
+                    localStorage.setItem(`packtunes_collection_${userId}`, JSON.stringify(withSuccubus));
                 } catch {}
 
                 // Background repair for all missing art in existing collection (batched to prevent render cascades)
@@ -282,18 +351,39 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             unsubscribers.push(onSnapshot(query(collection(db, 'events'), orderBy('startTime', 'desc')), s => setEvents(s.docs.map(d => ({id: d.id, ...d.data()}) as LabelEvent))));
             unsubscribers.push(onSnapshot(query(collection(db, 'labelRaids'), orderBy('startTime', 'desc')), s => setLabelRaids(s.docs.map(d => ({id: d.id, ...d.data()}) as LabelRaid))));
             unsubscribers.push(onSnapshot(collection(db, 'songBattles'), s => setSongBattles(s.docs.map(d => ({id: d.id, ...d.data()}) as SongBattle))));
+            const sanitizeGlobalActivities = (raw: GlobalActivity[]) => {
+                return raw.filter(item => {
+                    if (!item) return false;
+                    if (item.id && item.id.startsWith('seed_')) return false;
+                    const title = (item.song?.title || '').toLowerCase();
+                    if (title.includes('magnolia')) {
+                        if (item.id) deleteDoc(doc(db, 'globalActivity', item.id)).catch(() => {});
+                        return false;
+                    }
+                    if (title.includes('espresso') && item.userId !== userId) {
+                        if (item.id) deleteDoc(doc(db, 'globalActivity', item.id)).catch(() => {});
+                        return false;
+                    }
+                    if (item.userId && item.userId.startsWith('user_') && item.userId !== userId) {
+                        if (item.id) deleteDoc(doc(db, 'globalActivity', item.id)).catch(() => {});
+                        return false;
+                    }
+                    return true;
+                });
+            };
+
             unsubscribers.push(onSnapshot(
                 query(collection(db, 'globalActivity'), orderBy('timestamp', 'desc'), limit(50)),
                 (s) => {
                     const activities = s.docs.map(d => ({ id: d.id, ...d.data() }) as GlobalActivity);
-                    setGlobalActivityFeed(activities);
+                    setGlobalActivityFeed(sanitizeGlobalActivities(activities));
                 },
                 (error) => {
                     console.warn("Retrying globalActivity without order index:", error);
                     unsubscribers.push(onSnapshot(collection(db, 'globalActivity'), (s) => {
                         const items = s.docs.map(d => ({ id: d.id, ...d.data() }) as GlobalActivity);
                         items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-                        setGlobalActivityFeed(items.slice(0, 50));
+                        setGlobalActivityFeed(sanitizeGlobalActivities(items).slice(0, 50));
                     }));
                 }
             ));
@@ -497,6 +587,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 if (Array.isArray(parsed)) initialCollection = parsed;
             }
         } catch {}
+        initialCollection = ensureSuccubusOnAccount('guest_user', 'Guest Collector', initialCollection);
         setCurrentUserCollection(initialCollection);
 
         const guestUser: User = {
@@ -526,9 +617,25 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setIsLoading(false);
     };
 
-    const openNewPack = async (packType: string = 'standard') => {
+    const openNewPack = async (packType: string = 'standard', autoRevealAll: boolean = false) => {
         if (isOpeningPack) return;
         setIsOpeningPack(true);
+        setRewardPackInitialMode(autoRevealAll ? 'reveal_all' : 'stack');
+
+        const titleMap: Record<string, string> = {
+            standard: 'Standard Pack',
+            daily_mythic: 'Daily Mythic Madness',
+            shiny_rush: 'Golden Shiny Rush',
+            pop_2010s_2020s: 'Pop Hits Drop',
+            hiphop_greats: 'Hip-Hop Classics Drop',
+            rnb_vibes: 'R&B & Soul Drop',
+            rock_legends: 'Rock & Alternative Drop',
+            indie_gems: 'Indie Anthems Drop',
+            kpop_fever: 'K-Pop Fever Drop',
+            retro_legends: 'Retro Legends Drop',
+            black_market: 'Black Market Syndicate Pack',
+        };
+        setRewardPackTitle(titleMap[packType] || 'Song Pack');
 
         try {
             const userId = currentUser?.id || auth.currentUser?.uid || 'guest_user';
@@ -725,6 +832,32 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             addNotification({ type: 'generic', message: (error as Error).message || "Failed to open pack." });
         } finally {
             setIsOpeningPack(false);
+        }
+    };
+
+    const vaultSongs = (songIds: string[], isVaulted: boolean = true) => {
+        const idSet = new Set(songIds);
+        setCurrentUserCollection((prev) => {
+            const updated = prev.map((item) => {
+                if (idSet.has(item.id)) {
+                    return { ...item, isVaulted };
+                }
+                return item;
+            });
+
+            const userId = currentUser?.id || auth.currentUser?.uid || 'guest_user';
+            try {
+                localStorage.setItem(`packtunes_collection_${userId}`, JSON.stringify(updated));
+            } catch {}
+
+            return updated;
+        });
+
+        if (currentUser && currentUser.id !== 'guest_user') {
+            songIds.forEach((id) => {
+                const docRef = doc(db, 'users', currentUser.id, 'collection', id);
+                setDoc(docRef, { isVaulted }, { merge: true }).catch(() => {});
+            });
         }
     };
     
@@ -1658,7 +1791,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         openNewPack,
         isOpeningPack,
         rewardPack,
+        rewardPackInitialMode,
+        rewardPackTitle,
         setRewardPack,
+        vaultSongs,
         continueAsGuest,
     };
 

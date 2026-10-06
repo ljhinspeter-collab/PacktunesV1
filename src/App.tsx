@@ -47,7 +47,9 @@ const App: React.FC = () => {
       setViewingUser,
       setActiveChatId,
       rewardPack,
-      setRewardPack
+      setRewardPack,
+      rewardPackInitialMode,
+      rewardPackTitle,
     } = userContext;
   
     if (!currentUser) {
@@ -114,7 +116,14 @@ const App: React.FC = () => {
           {/* Global Modals managed by UserContext */}
           {isProfileModalOpen && viewingUser && <UserProfileModal user={viewingUser} onClose={() => setViewingUser(null)} />}
           {activeChat && <ChatModal chat={activeChat} onClose={() => setActiveChatId(null)} />}
-          {rewardPack && <RewardModal pack={rewardPack} title="New Pack!" onClose={() => setRewardPack(null)} />}
+          {rewardPack && (
+            <RewardModal 
+              pack={rewardPack} 
+              title={rewardPackTitle || "New Pack!"} 
+              initialMode={rewardPackInitialMode || 'stack'}
+              onClose={() => setRewardPack(null)} 
+            />
+          )}
         </div>
       );
     }

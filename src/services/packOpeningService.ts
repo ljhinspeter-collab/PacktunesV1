@@ -457,7 +457,7 @@ export const generateAndOpenPack = async (
       forceMythic: isMythicSlot,
       forceShiny: isGuaranteedShinySlot,
       elevatedRNG: isDailyMythicPack && !isMythicSlot,
-      shinyMultiplier: isShinyRush ? 10 : 1, // 30% per card for Golden Shiny Rush!
+      shinyMultiplier: isShinyRush ? 10 : 1,
       isThemedGenrePack,
       isExcludedFromClanWar,
     });

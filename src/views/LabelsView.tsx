@@ -22,6 +22,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { CanvasShowcaseView } from '../components/CanvasShowcaseView';
 import { DEFAULT_VINYL_COVER, handleImageError, isPlaceholderCover } from '../utils/imageFallback';
 import { ClanDetailsModal } from '../components/ClanDetailsModal';
+import { getTop100Leaderboard } from '../services/playerRankingService';
 
 
 const fileToBase64 = (file: File): Promise<string> => {
@@ -167,7 +168,22 @@ export const UserProfileModal: React.FC<{ user: User, onClose: () => void }> = (
                                 <img src={user.pfpUrl} alt={user.name} className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-4 border-gray-700 shadow-lg" />
                             )}
                         </div>
-                        <h3 className="text-2xl font-black text-white">{user.name}</h3>
+                        <div className="flex items-center gap-2 flex-wrap justify-center">
+                            <h3 className="text-2xl font-black text-white">{user.name}</h3>
+                            {(() => {
+                                const { currentUserRank, currentUserScore, leaderboard } = getTop100Leaderboard(user, viewingUserCollection);
+                                const entry = leaderboard.find(l => l.id === user.id || l.name.toLowerCase() === (user.name || '').toLowerCase());
+                                const rank = entry ? entry.rank : currentUserRank;
+                                const score = entry ? entry.score : currentUserScore;
+                                return (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-yellow-500/20 via-amber-500/20 to-purple-500/20 border border-yellow-500/50 shadow-md">
+                                        <span className="text-xs">🏆</span>
+                                        <span className="text-xs font-black text-yellow-300 font-mono">Rank #{rank}</span>
+                                        <span className="text-[10px] text-gray-400 font-bold">• {score.toLocaleString()} pts</span>
+                                    </div>
+                                );
+                            })()}
+                        </div>
                         {activeTitle && (
                             <TitleDisplay 
                                 title={activeTitle} 

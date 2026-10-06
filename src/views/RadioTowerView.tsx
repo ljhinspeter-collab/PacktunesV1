@@ -2,12 +2,13 @@ import React, { useState, useContext, useMemo } from 'react';
 import { UserContext } from '../contexts/UserContext';
 import type { User, Mixtape } from '../types';
 import { RadioPlayerModal } from '../components/RadioPlayerModal';
-import { BroadcastIcon } from '../components/icons';
+import { BroadcastIcon, StarIcon, FireIcon } from '../components/icons';
 import { GlobalActivityFeed } from '../components/GlobalActivityFeed';
+import { FavoriteArtistDropsView } from '../components/FavoriteArtistDropsView';
 import { EventsView } from './EventsView';
 import { ChallengesView } from './ChallengesView';
 
-type ActivityTab = 'feed' | 'wars' | 'radio' | 'challenges';
+type ActivityTab = 'feed' | 'favorites' | 'wars' | 'radio' | 'challenges';
 
 const RadioStationCard: React.FC<{
     stationOwner: User;
@@ -96,6 +97,8 @@ export const ActivityView: React.FC = () => {
         switch (activeTab) {
             case 'feed':
                 return <GlobalActivityFeed />;
+            case 'favorites':
+                return <FavoriteArtistDropsView />;
             case 'wars':
                 return <EventsView />;
             case 'radio':
@@ -109,28 +112,34 @@ export const ActivityView: React.FC = () => {
     
     return (
         <div>
-            <div className="flex flex-nowrap justify-start sm:justify-center overflow-x-auto border-b border-gray-700 mb-6 no-scrollbar">
+            <div className="flex flex-nowrap justify-start sm:justify-center overflow-x-auto border-b border-gray-700 mb-6 no-scrollbar gap-1">
                  <button 
                     onClick={() => setActiveTab('feed')}
-                    className={`flex-shrink-0 px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'feed' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+                    className={`flex-shrink-0 px-5 py-3 font-bold text-sm transition-colors flex items-center gap-1.5 ${activeTab === 'feed' ? 'border-b-2 border-purple-400 text-purple-300' : 'text-gray-400 hover:text-white'}`}
                 >
-                    Global Feed
+                    <span>⚡ Mythic & Grail Feed</span>
+                </button>
+                 <button 
+                    onClick={() => setActiveTab('favorites')}
+                    className={`flex-shrink-0 px-5 py-3 font-bold text-sm transition-colors flex items-center gap-1.5 ${activeTab === 'favorites' ? 'border-b-2 border-yellow-400 text-yellow-300' : 'text-gray-400 hover:text-white'}`}
+                >
+                    <span>⭐ Favorite Drops</span>
                 </button>
                  <button 
                     onClick={() => setActiveTab('wars')}
-                    className={`flex-shrink-0 px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'wars' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+                    className={`flex-shrink-0 px-5 py-3 font-semibold text-sm transition-colors ${activeTab === 'wars' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                     Label Wars
                 </button>
                  <button 
                     onClick={() => setActiveTab('radio')}
-                    className={`flex-shrink-0 px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'radio' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+                    className={`flex-shrink-0 px-5 py-3 font-semibold text-sm transition-colors ${activeTab === 'radio' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                     Radio Stations
                 </button>
                  <button 
                     onClick={() => setActiveTab('challenges')}
-                    className={`flex-shrink-0 px-6 py-3 font-semibold text-sm transition-colors ${activeTab === 'challenges' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+                    className={`flex-shrink-0 px-5 py-3 font-semibold text-sm transition-colors ${activeTab === 'challenges' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                     Achievements
                 </button>

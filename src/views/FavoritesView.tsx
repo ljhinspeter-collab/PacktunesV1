@@ -8,6 +8,7 @@ import { searchArtists } from '../services/musicService';
 import { SearchBar } from '../components/SearchBar';
 import { StarIcon } from '../components/icons';
 import { UserContext } from '../contexts/UserContext';
+import { FavoriteArtistDropsView } from '../components/FavoriteArtistDropsView';
 
 export const FavoritesView: React.FC = () => {
   const [query, setQuery] = useState('');
@@ -115,9 +116,14 @@ export const FavoritesView: React.FC = () => {
                     ))}
                 </div>
             )}
-             <div className="mt-6 text-center text-sm text-gray-400 p-3 bg-gray-800/50 rounded-lg border border-gray-700 flex items-center justify-center gap-2">
+             <div className="mt-6 text-center text-sm text-gray-400 p-3 bg-gray-800/50 rounded-lg border border-gray-700 flex items-center justify-center gap-2 mb-8">
                 <StarIcon className="w-5 h-5 text-yellow-400" />
                 <span>Adding favorites gives you a chance of finding one in a pack, boosted during special events!</span>
+            </div>
+
+            {/* Live Drop Tracker for Favorite Artists */}
+            <div className="pt-6 border-t border-gray-800">
+                <FavoriteArtistDropsView />
             </div>
         </div>
       </div>

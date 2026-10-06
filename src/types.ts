@@ -61,6 +61,7 @@ export interface CollectedSong {
   prestigedAt?: number;
   isThemedGenrePack?: boolean;
   isExcludedFromClanWar?: boolean;
+  isVaulted?: boolean;
 }
 
 export interface Badge {
@@ -509,11 +510,14 @@ export interface UserContextType {
     recalculateCollectionMastery: () => Promise<void>;
 
     // Pack Opening
-    openNewPack: (packType?: string) => Promise<void>;
+    openNewPack: (packType?: string, autoRevealAll?: boolean) => Promise<void>;
     isOpeningPack: boolean;
     rewardPack: CollectedSong[] | null;
+    rewardPackInitialMode?: 'stack' | 'reveal_all';
+    rewardPackTitle?: string;
     // FIX: Use imported types instead of React namespace.
     setRewardPack: Dispatch<SetStateAction<CollectedSong[] | null>>;
+    vaultSongs?: (songIds: string[], isVaulted?: boolean) => void;
     continueAsGuest?: () => void;
 }
 

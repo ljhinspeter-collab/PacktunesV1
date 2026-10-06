@@ -73,6 +73,24 @@ class DataService {
     async updateUser(userId: string, data: any): Promise<void> {
         await updateDoc(doc(collections.users, userId), data);
     }
+
+    async isUsernameTaken(name: string, excludeUserId?: string): Promise<boolean> {
+        const cleanName = name.trim().toLowerCase();
+        if (!cleanName) return false;
+        try {
+            const snap = await getDocs(collections.users);
+            for (const doc of snap.docs) {
+                if (excludeUserId && doc.id === excludeUserId) continue;
+                const dName = (doc.data().name || '').trim().toLowerCase();
+                if (dName === cleanName) {
+                    return true;
+                }
+            }
+        } catch (e) {
+            console.warn("Could not check username uniqueness:", e);
+        }
+        return false;
+    }
     
      async getUsersByIds(userIds: string[]): Promise<User[]> {
         if (!userIds || userIds.length === 0) return [];
