@@ -41,6 +41,7 @@ const jsonp = (baseUrl: string, callbackName: string = `jsonp_${Date.now()}_${Ma
         };
         
         script.src = url;
+        script.crossOrigin = 'anonymous';
         script.onerror = () => {
             if (!isSettled) {
                 clearTimeout(timer);

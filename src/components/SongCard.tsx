@@ -10,7 +10,7 @@ interface SongCardProps {
   onClick: (song: CollectedSong) => void;
 }
 
-export const SongCard: React.FC<SongCardProps> = ({ collectedSong, onClick }) => {
+const SongCardComponent: React.FC<SongCardProps> = ({ collectedSong, onClick }) => {
   const { song, isPrestige, serialNumber } = collectedSong;
   const rarityStyles = getRarityStyles(song.rarity);
 
@@ -92,3 +92,5 @@ export const SongCard: React.FC<SongCardProps> = ({ collectedSong, onClick }) =>
     </div>
   );
 };
+
+export const SongCard = React.memo(SongCardComponent);

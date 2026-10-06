@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useRef } from 'react';
 import { UserContext } from '../contexts/UserContext';
 import { PackageIcon, SparklesIcon, DiamondIcon, FireIcon } from '../components/icons';
 
@@ -21,8 +21,8 @@ const PACK_OPTIONS: PackOption[] = [
         id: 'daily_mythic',
         title: 'Daily Mythic Madness',
         badge: '🔥 1 CLAIM DAILY',
-        description: 'Extreme rarity pack with boosted Mythic drop rates!',
-        perks: ['🔥 20% Mythic Card Rate', '⭐ 10% Favorite Artist Mythic', '✨ Serial #001-#010 Drops', '⚠️ Excluded from Clan War Scores'],
+        description: 'Extreme rarity pack with a guaranteed numbered Mythic card!',
+        perks: ['🔥 100% Guaranteed Mythic Card', '⚡ 3% Chance for Jailbroken 1 of 1', '⭐ 25% Favorite Artist Mythic Roll', '✨ Numbered Serials #001-#010'],
         gradient: 'from-amber-500 via-yellow-600 to-amber-900',
         borderColor: 'border-yellow-400',
         textColor: 'text-amber-300',
@@ -33,7 +33,7 @@ const PACK_OPTIONS: PackOption[] = [
         title: 'Golden Shiny Rush',
         badge: '✨ 5 CLAIMS DAILY',
         description: 'Massively boosted holographic & shiny pull rates.',
-        perks: ['✨ 5x Shiny Card Drop Rate (10%/card)', '💎 5 Daily Claims Max', '🌟 High Prestige & Serial Synergy', '⚠️ Excluded from Clan War Scores'],
+        perks: ['✨ Guaranteed Shiny Hologram Card', '🌟 30% Boosted Shiny Rate (avg 2-3)', '💎 5 Daily Claims Max', '⚠️ Excluded from Clan War Scores'],
         gradient: 'from-emerald-600 via-teal-700 to-cyan-900',
         borderColor: 'border-emerald-400',
         textColor: 'text-emerald-300',
@@ -44,7 +44,7 @@ const PACK_OPTIONS: PackOption[] = [
         title: '2010s & 2020s Pop Hits',
         badge: '✨ 100 DAILY LIMIT',
         description: 'Billboard-topping pop anthems, chart-toppers, and viral hits.',
-        perks: ['🎤 Taylor Swift, Ariana Grande, Dua Lipa, The Weeknd', '🌟 Justin Bieber, Olivia Rodrigo, Billie Eilish, Harry Styles', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
+        perks: ['🌟 300+ Pop Icons & Chart-Toppers', '🎤 6 Distinct Artists Per Pack Guaranteed', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
         gradient: 'from-violet-600 via-fuchsia-600 to-pink-700',
         borderColor: 'border-fuchsia-400',
         textColor: 'text-fuchsia-300',
@@ -55,7 +55,7 @@ const PACK_OPTIONS: PackOption[] = [
         title: 'Hip Hop Royalty',
         badge: '🎤 100 DAILY LIMIT',
         description: 'Pulls strictly from the greatest rap & trap pioneers.',
-        perks: ['👑 Kendrick, Drake, J. Cole, Travis Scott, Ye', '🔥 100% Hip-Hop Card Guarantee', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
+        perks: ['👑 350+ Hip-Hop & Rap Legends Pool', '🔥 100% Hip-Hop Cards (6 Unique Artists)', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
         gradient: 'from-red-600 via-rose-800 to-amber-900',
         borderColor: 'border-red-500',
         textColor: 'text-red-300',
@@ -65,8 +65,8 @@ const PACK_OPTIONS: PackOption[] = [
         id: 'retro_legends',
         title: '80s & 90s Vintage Legends',
         badge: '🎸 100 DAILY LIMIT',
-        description: 'Timeless rock, pop, and hip hop classics.',
-        perks: ['⚡ Queen, Michael Jackson, Prince, Nirvana', '🎧 Fleetwood Mac, Madonna, Tupac, Biggie', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
+        description: 'Timeless rock, pop, and R&B classics with clean genre separation.',
+        perks: ['🎸 Classic Rock: Queen, Nirvana, Led Zep, AC/DC', '👑 Pop & R&B: Michael Jackson, Prince, Madonna', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
         gradient: 'from-purple-600 via-fuchsia-800 to-indigo-900',
         borderColor: 'border-fuchsia-400',
         textColor: 'text-fuchsia-300',
@@ -77,7 +77,7 @@ const PACK_OPTIONS: PackOption[] = [
         title: 'K-Pop & J-Pop Fever',
         badge: '🌸 100 DAILY LIMIT',
         description: 'High-energy idols, viral anthems, and anime OSTs.',
-        perks: ['🌸 BTS, BLACKPINK, TWICE, Stray Kids', '💖 100% K-Pop / J-Pop Card Guarantee', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
+        perks: ['🌸 150+ Top K-Pop & J-Pop Idols & Groups', '💖 100% K-Pop Guarantee (6 Unique Artists)', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
         gradient: 'from-pink-500 via-rose-600 to-purple-800',
         borderColor: 'border-pink-400',
         textColor: 'text-pink-300',
@@ -88,7 +88,7 @@ const PACK_OPTIONS: PackOption[] = [
         title: 'Indie & Underground Gems',
         badge: '🌿 100 DAILY LIMIT',
         description: 'Alternative, indie rock, and bedroom pop favorites.',
-        perks: ['🌿 Tame Impala, Arctic Monkeys, Phoebe Bridgers', '🌊 100% Indie Card Guarantee', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
+        perks: ['🌿 250+ Indie, Alternative & Bedroom Icons', '🌊 100% Indie Guarantee (6 Unique Artists)', '📊 Shared 100 Daily Genre Packs Cap', '⚠️ Excluded from Clan War Scores'],
         gradient: 'from-cyan-600 via-blue-800 to-slate-900',
         borderColor: 'border-cyan-400',
         textColor: 'text-cyan-300',
@@ -110,7 +110,7 @@ const PACK_OPTIONS: PackOption[] = [
 export const PacksView: React.FC = () => {
     const userContext = useContext(UserContext);
     const [selectedPackId, setSelectedPackId] = useState<string>('daily_mythic');
-    const [holoStyle, setHoloStyle] = useState({});
+    const packButtonRef = useRef<HTMLButtonElement | null>(null);
 
     if (!userContext) {
         return null;
@@ -145,7 +145,9 @@ export const PacksView: React.FC = () => {
     const isSelectedGenrePack = GENRE_PACK_IDS.includes(selectedPack.id);
     const isGenreLimitReached = genreClaimsToday >= 100;
 
+    // Direct DOM style updates on mouse move: 0 React re-renders, perfectly smooth 120fps tilt!
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!packButtonRef.current) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -155,17 +157,14 @@ export const PacksView: React.FC = () => {
         const rotateX = -((y / rect.height) * 20 - 10);
         const rotateY = (x / rect.width) * 20 - 10;
         
-        setHoloStyle({
-            '--holoX': `${holoX}%`,
-            '--holoY': `${holoY}%`,
-            transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
-        });
+        packButtonRef.current.style.setProperty('--holoX', `${holoX}%`);
+        packButtonRef.current.style.setProperty('--holoY', `${holoY}%`);
+        packButtonRef.current.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
     };
 
     const handleMouseLeave = () => {
-        setHoloStyle({
-            transform: 'rotateX(0deg) rotateY(0deg)',
-        });
+        if (!packButtonRef.current) return;
+        packButtonRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)';
     };
     
     const handleOpenPack = async () => {
@@ -369,12 +368,12 @@ export const PacksView: React.FC = () => {
                 onMouseLeave={handleMouseLeave}
             >
                 <button
+                    ref={packButtonRef}
                     onClick={handleOpenPack}
                     disabled={isOpeningPack || (selectedPack.id === 'daily_mythic' && isMythicClaimedToday) || (selectedPack.id === 'shiny_rush' && isShinyRushDepleted) || (isSelectedGenrePack && isGenreLimitReached)}
                     className={`pack-3d w-full h-full bg-gradient-to-br ${selectedPack.gradient} rounded-2xl shadow-2xl flex flex-col items-center justify-center p-8 transition-transform border ${selectedPack.borderColor} ${
                         (selectedPack.id === 'daily_mythic' && isMythicClaimedToday) || (selectedPack.id === 'shiny_rush' && isShinyRushDepleted) || (isSelectedGenrePack && isGenreLimitReached) ? 'opacity-60 cursor-not-allowed' : ''
                     }`}
-                    style={holoStyle}
                 >
                     {isOpeningPack ? (
                         <div className="flex flex-col items-center">

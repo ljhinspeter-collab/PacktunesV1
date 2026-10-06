@@ -173,12 +173,14 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     localStorage.setItem(`packtunes_collection_${userId}`, JSON.stringify(uniqueCollection));
                 } catch {}
 
-                // Background repair for all missing art in existing collection
+                // Background repair for all missing art in existing collection (batched to prevent render cascades)
                 if (songsToRepair.length > 0) {
                     setTimeout(async () => {
                         const chunkSize = 10;
                         for (let i = 0; i < songsToRepair.length; i += chunkSize) {
                             const chunk = songsToRepair.slice(i, i + chunkSize);
+                            const repairedMap = new Map<string, { albumArtUrl: string; previewUrl?: string }>();
+
                             await Promise.allSettled(chunk.map(async (item) => {
                                 try {
                                     const fresh = await getSongDetailsWithFallback(item.song);
@@ -187,25 +189,36 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                                         if (fresh.previewUrl) {
                                             item.song.previewUrl = fresh.previewUrl;
                                         }
-                                        setCurrentUserCollection(prev => prev.map(c => c.id === item.id ? { 
-                                            ...c, 
-                                            song: { 
-                                                ...c.song, 
-                                                albumArtUrl: fresh.albumArtUrl, 
-                                                ...(fresh.previewUrl ? { previewUrl: fresh.previewUrl } : {}) 
-                                            } 
-                                        } : c));
+                                        repairedMap.set(item.id, {
+                                            albumArtUrl: fresh.albumArtUrl,
+                                            previewUrl: fresh.previewUrl || undefined,
+                                        });
 
                                         const songDocRef = doc(db, 'users', userId, 'collection', item.id);
-                                        await updateDoc(songDocRef, { 
+                                        updateDoc(songDocRef, { 
                                             'song.albumArtUrl': fresh.albumArtUrl, 
                                             ...(fresh.previewUrl ? { 'song.previewUrl': fresh.previewUrl } : {}) 
-                                        });
+                                        }).catch(() => {});
                                     }
                                 } catch {}
                             }));
+
+                            if (repairedMap.size > 0) {
+                                setCurrentUserCollection(prev => prev.map(c => {
+                                    const rep = repairedMap.get(c.id);
+                                    if (!rep) return c;
+                                    return {
+                                        ...c,
+                                        song: {
+                                            ...c.song,
+                                            albumArtUrl: rep.albumArtUrl,
+                                            ...(rep.previewUrl ? { previewUrl: rep.previewUrl } : {})
+                                        }
+                                    };
+                                }));
+                            }
                         }
-                    }, 300);
+                    }, 500);
                 }
             }));
             
@@ -338,9 +351,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, [currentUser, addNotification]);
     
      useEffect(() => {
-        if (currentUser && currentUserCollection.length > 0) {
+        if (currentUser && currentUserCollection.length > 0 && !mythicFixRun.current) {
             const hasMythics = currentUserCollection.some(cs => cs.song.rarity === Rarity.Mythic);
             if (hasMythics) {
+                mythicFixRun.current = true;
                 dataService.fixNullMythicSerials(currentUser, currentUserCollection)
                     .then((updated) => {
                         if (updated && updated.length > 0) {
@@ -525,72 +539,83 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const newPack = await generateAndOpenPack(userId, existingSongIds, favoriteArtists, token, packType);
             setRewardPack(newPack);
 
-            // Log notable pulls to live global activity feed & register mythics
-            for (const item of newPack) {
-                const activitySong = {
-                    title: item.song.title,
-                    artistName: item.song.artist.name,
-                    artistId: item.song.artist.id,
-                    albumArtUrl: item.song.albumArtUrl,
-                    rarity: item.song.rarity,
-                    isShiny: !!item.song.isShiny,
-                    isPrestige: !!item.isPrestige,
-                };
+            // Log notable pulls to live global activity feed & register mythics in background (non-blocking)
+            (async () => {
+                for (const item of newPack) {
+                    const activitySong = {
+                        title: item.song.title,
+                        artistName: item.song.artist.name,
+                        artistId: item.song.artist.id,
+                        albumArtUrl: item.song.albumArtUrl,
+                        rarity: item.song.rarity,
+                        isShiny: !!item.song.isShiny,
+                        isPrestige: !!item.isPrestige,
+                    };
 
-                if (item.song.rarity === Rarity.Mythic) {
-                    if (currentUser) {
-                        try {
-                            const ownerDocRef = doc(db, 'firstMythicOwners', item.song.id);
-                            const snap = await getDoc(ownerDocRef);
-                            if (!snap.exists()) {
-                                await setDoc(ownerDocRef, { ownerId: currentUser.id, ownerName: currentUser.name });
-                            }
-                        } catch {}
-                        dataService.addGlobalActivity({
-                            type: 'PULL_MYTHIC',
-                            userId: currentUser.id,
-                            userName: currentUser.name,
-                            userPfpUrl: currentUser.pfpUrl,
-                            song: activitySong,
-                            timestamp: Date.now(),
-                        }).catch(() => {});
-                    }
-                } else if (item.song.rarity === Rarity.Jailbroken) {
-                    if (currentUser) {
-                        dataService.addGlobalActivity({
-                            type: 'PULL_JAILBROKEN',
-                            userId: currentUser.id,
-                            userName: currentUser.name,
-                            userPfpUrl: currentUser.pfpUrl,
-                            song: activitySong,
-                            timestamp: Date.now(),
-                        }).catch(() => {});
-                    }
-                } else if (item.song.isShiny && (item.song.rarity === Rarity.Rare || item.song.rarity === Rarity.Uncommon)) {
-                    if (currentUser) {
-                        dataService.addGlobalActivity({
-                            type: 'PULL_SHINY_RARE',
-                            userId: currentUser.id,
-                            userName: currentUser.name,
-                            userPfpUrl: currentUser.pfpUrl,
-                            song: activitySong,
-                            timestamp: Date.now(),
-                        }).catch(() => {});
+                    if (item.song.rarity === Rarity.Mythic) {
+                        if (currentUser) {
+                            try {
+                                const ownerDocRef = doc(db, 'firstMythicOwners', item.song.id);
+                                const snap = await getDoc(ownerDocRef);
+                                if (!snap.exists()) {
+                                    await setDoc(ownerDocRef, { ownerId: currentUser.id, ownerName: currentUser.name });
+                                }
+                            } catch {}
+                            dataService.addGlobalActivity({
+                                type: 'PULL_MYTHIC',
+                                userId: currentUser.id,
+                                userName: currentUser.name,
+                                userPfpUrl: currentUser.pfpUrl,
+                                song: activitySong,
+                                timestamp: Date.now(),
+                            }).catch(() => {});
+                        }
+                    } else if (item.song.rarity === Rarity.Jailbroken) {
+                        if (currentUser) {
+                            dataService.logJailbrokenPull(item.song.id, currentUser, item.id).catch(() => {});
+                            dataService.addGlobalActivity({
+                                type: 'PULL_JAILBROKEN',
+                                userId: currentUser.id,
+                                userName: currentUser.name,
+                                userPfpUrl: currentUser.pfpUrl,
+                                song: activitySong,
+                                timestamp: Date.now(),
+                            }).catch(() => {});
+                        }
+                    } else if (item.song.isShiny && (item.song.rarity === Rarity.Rare || item.song.rarity === Rarity.Uncommon)) {
+                        if (currentUser) {
+                            dataService.addGlobalActivity({
+                                type: 'PULL_SHINY_RARE',
+                                userId: currentUser.id,
+                                userName: currentUser.name,
+                                userPfpUrl: currentUser.pfpUrl,
+                                song: activitySong,
+                                timestamp: Date.now(),
+                            }).catch(() => {});
+                        }
                     }
                 }
-            }
+            })().catch(() => {});
 
             // Deduplicate immediately by song instance ID so collection never has duplicate entries
             setCurrentUserCollection((prev) => {
                 const map = new Map<string, CollectedSong>();
                 prev.forEach(item => map.set(item.id, item));
                 newPack.forEach(item => map.set(item.id, item));
-                const updated = Array.from(map.values());
-                try {
-                    localStorage.setItem(`packtunes_collection_${userId}`, JSON.stringify(updated));
-                } catch {}
-                return updated;
+                return Array.from(map.values());
             });
+
+            // Defer heavy JSON serialization to localStorage off the critical frame
+            setTimeout(() => {
+                try {
+                    const saved = localStorage.getItem(`packtunes_collection_${userId}`);
+                    const existing: CollectedSong[] = saved ? JSON.parse(saved) : [];
+                    const map = new Map<string, CollectedSong>();
+                    existing.forEach(item => map.set(item.id, item));
+                    newPack.forEach(item => map.set(item.id, item));
+                    localStorage.setItem(`packtunes_collection_${userId}`, JSON.stringify(Array.from(map.values())));
+                } catch {}
+            }, 60);
 
             if (currentUser) {
                 // Update Artist Mastery XP for all pulled artists

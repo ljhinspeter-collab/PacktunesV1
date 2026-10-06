@@ -12,6 +12,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Caveat:wght@600;700&family=Dancing+Script:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      window.onerror = function(msg) {
+        if (msg === 'Script error.' || (typeof msg === 'string' && (msg.includes('Script error') || msg.includes('JSONP')))) {
+          return true;
+        }
+      };
+      window.onunhandledrejection = function(event) {
+        if (event.reason === 'Script error.' || (event.reason && typeof event.reason.message === 'string' && event.reason.message.includes('Script error'))) {
+          event.preventDefault();
+        }
+      };
+    </script>
   </head>
   <body class="bg-gray-900 text-white font-sans antialiased">
     <div id="root"></div>
