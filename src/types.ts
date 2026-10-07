@@ -508,6 +508,7 @@ export interface UserContextType {
     resyncGoldenVinyls: () => Promise<void>;
     resyncBadgesAndMastery: () => Promise<void>;
     recalculateCollectionMastery: () => Promise<void>;
+    restoreAccountProgress: () => Promise<void>;
 
     // Pack Opening
     openNewPack: (packType?: string, autoRevealAll?: boolean) => Promise<void>;

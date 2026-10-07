@@ -70,23 +70,32 @@ const ShowcaseSongItem: React.FC<{ title: string; item: CollectedSong | undefine
 
 const TitleDisplay: React.FC<{ title: Title; className?: string }> = ({ title, className }) => {
     const [showInfo, setShowInfo] = useState(false);
-    const baseClasses = "px-3 py-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black font-bold rounded-full text-sm shadow-lg transform hover:scale-105 transition-transform";
+    const isDev = title.id === 'title-dev-fdhfm5' || title.name === 'fdhfm5';
+
+    let baseClasses = "px-3 py-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black font-bold rounded-full text-sm shadow-lg transform hover:scale-105 transition-transform";
     
+    if (isDev) {
+        baseClasses = "px-3.5 py-1 bg-gradient-to-r from-red-500 via-amber-300 via-cyan-400 to-purple-600 text-black font-black uppercase tracking-wider rounded-full text-sm shadow-[0_0_20px_rgba(245,158,11,0.8)] border-2 border-yellow-200 animate-pulse transform hover:scale-110 transition-transform inline-flex items-center gap-1.5";
+    }
+
     return (
-        <div className="relative mt-2">
+        <div className="relative mt-2 inline-block">
             <button
                 onClick={() => setShowInfo(s => !s)}
                 className={`${baseClasses} ${className || ''}`}
                 data-text={title.name}
             >
+                {isDev && <span className="text-xs">⚡</span>}
                 {title.name}
+                {isDev && <span className="text-[10px] bg-black text-amber-300 px-1.5 py-0.5 rounded font-mono ml-1 border border-amber-400">DEV</span>}
             </button>
             {showInfo && (
                 <div 
-                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs p-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl text-xs text-center z-10 animate-fadeIn"
+                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs p-2.5 bg-gray-900 border border-amber-500/50 rounded-lg shadow-2xl text-xs text-center z-20 animate-fadeIn"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {title.description}
+                    <p className="font-bold text-amber-300">{title.name}</p>
+                    <p className="text-gray-300 text-[11px] mt-0.5">{title.description}</p>
                 </div>
             )}
         </div>

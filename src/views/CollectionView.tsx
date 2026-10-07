@@ -345,17 +345,24 @@ const VinylShelfView: React.FC<{
     canPin: boolean;
 }> = ({ vinyls, onPlay, onPin, proudestVinylIds, canPin }) => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [displayCount, setDisplayCount] = useState(24);
+    const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+    const [displayCount, setDisplayCount] = useState(10);
 
     const filteredVinyls = useMemo(() => {
-        if (!searchTerm.trim()) return vinyls;
-        const q = searchTerm.toLowerCase().trim();
-        return vinyls.filter(v => 
-            v.albumName.toLowerCase().includes(q) || 
-            (v.artistName && v.artistName.toLowerCase().includes(q)) ||
-            (v.tracks && v.tracks.some(t => t.title.toLowerCase().includes(q) || t.artist?.name?.toLowerCase().includes(q)))
-        );
-    }, [vinyls, searchTerm]);
+        let result = vinyls;
+        if (showFavoritesOnly) {
+            result = result.filter(v => (proudestVinylIds || []).includes(v.albumId));
+        }
+        if (searchTerm.trim()) {
+            const q = searchTerm.toLowerCase().trim();
+            result = result.filter(v => 
+                v.albumName.toLowerCase().includes(q) || 
+                (v.artistName && v.artistName.toLowerCase().includes(q)) ||
+                (v.tracks && v.tracks.some(t => t.title.toLowerCase().includes(q) || t.artist?.name?.toLowerCase().includes(q)))
+            );
+        }
+        return result;
+    }, [vinyls, searchTerm, showFavoritesOnly, proudestVinylIds]);
 
     const visibleVinyls = useMemo(() => {
         return filteredVinyls.slice(0, displayCount);
@@ -382,18 +389,31 @@ const VinylShelfView: React.FC<{
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-800/60 p-3 rounded-xl border border-gray-700">
                 <div className="text-sm text-gray-300 font-medium">
                     Total Golden Vinyls: <span className="font-bold text-amber-400">{vinyls.length}</span>
-                    {searchTerm && ` (${filteredVinyls.length} match)`}
+                    {(searchTerm || showFavoritesOnly) && ` (${filteredVinyls.length} match)`}
                 </div>
-                <div className="w-full sm:w-64">
+                <div className="w-full sm:w-auto flex items-center gap-2">
+                    <button
+                        onClick={() => {
+                            setShowFavoritesOnly(prev => !prev);
+                            setDisplayCount(10);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap flex items-center gap-1 border ${
+                            showFavoritesOnly 
+                                ? 'bg-amber-500/20 border-amber-500 text-amber-300' 
+                                : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'
+                        }`}
+                    >
+                        ⭐ {showFavoritesOnly ? 'Pinned Only' : 'Favorites Only'}
+                    </button>
                     <input
                         type="text"
                         placeholder="Search shelf by album or artist..."
                         value={searchTerm}
                         onChange={e => {
                             setSearchTerm(e.target.value);
-                            setDisplayCount(24);
+                            setDisplayCount(10);
                         }}
-                        className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500"
+                        className="w-full sm:w-64 px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500"
                     />
                 </div>
             </div>
@@ -419,7 +439,7 @@ const VinylShelfView: React.FC<{
             {displayCount < filteredVinyls.length && (
                 <div className="text-center pt-4">
                     <button
-                        onClick={() => setDisplayCount(prev => prev + 24)}
+                        onClick={() => setDisplayCount(prev => prev + 10)}
                         className="px-6 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-black font-bold rounded-lg shadow-md transition-all">
                         Load More ({filteredVinyls.length - displayCount} remaining)
                     </button>
@@ -431,23 +451,32 @@ const VinylShelfView: React.FC<{
 
 const TitleDisplay: React.FC<{ title: Title; className?: string }> = ({ title, className }) => {
     const [showInfo, setShowInfo] = useState(false);
-    const baseClasses = "px-3 py-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black font-bold rounded-full text-sm shadow-lg transform hover:scale-105 transition-transform";
+    const isDev = title.id === 'title-dev-fdhfm5' || title.name === 'fdhfm5';
+
+    let baseClasses = "px-3 py-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black font-bold rounded-full text-sm shadow-lg transform hover:scale-105 transition-transform";
     
+    if (isDev) {
+        baseClasses = "px-3.5 py-1 bg-gradient-to-r from-red-500 via-amber-300 via-cyan-400 to-purple-600 text-black font-black uppercase tracking-wider rounded-full text-sm shadow-[0_0_20px_rgba(245,158,11,0.8)] border-2 border-yellow-200 animate-pulse transform hover:scale-110 transition-transform inline-flex items-center gap-1.5";
+    }
+
     return (
-        <div className="relative mt-2">
+        <div className="relative mt-2 inline-block">
             <button
                 onClick={() => setShowInfo(s => !s)}
                 className={`${baseClasses} ${className || ''}`}
                 data-text={title.name}
             >
+                {isDev && <span className="text-xs">⚡</span>}
                 {title.name}
+                {isDev && <span className="text-[10px] bg-black text-amber-300 px-1.5 py-0.5 rounded font-mono ml-1 border border-amber-400">DEV</span>}
             </button>
             {showInfo && (
                 <div 
-                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs p-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl text-xs text-center z-10 animate-fadeIn"
+                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs p-2.5 bg-gray-900 border border-amber-500/50 rounded-lg shadow-2xl text-xs text-center z-20 animate-fadeIn"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {title.description}
+                    <p className="font-bold text-amber-300">{title.name}</p>
+                    <p className="text-gray-300 text-[11px] mt-0.5">{title.description}</p>
                 </div>
             )}
         </div>
@@ -455,7 +484,7 @@ const TitleDisplay: React.FC<{ title: Title; className?: string }> = ({ title, c
 };
 
 
-type ProfileViewTab = 'collection' | 'showcase' | 'playlist' | 'vinyls' | 'stats' | 'mastery' | 'discover' | 'radio' | 'boosts';
+type ProfileViewTab = 'collection' | 'showcase' | 'playlist' | 'favorites' | 'stats' | 'mastery' | 'discover' | 'radio' | 'boosts';
 
 export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
   const [query, setQuery] = useState('');
@@ -475,7 +504,7 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
   const [playingVinyl, setPlayingVinyl] = useState<Vinyl | null>(null);
   const [playingRadio, setPlayingRadio] = useState<Mixtape | null>(null);
   const userContext = useContext(UserContext);
-  const { currentUser, currentUserCollection, viewingUserCollection, updateCurrentUser, updateShowcase } = userContext!;
+  const { currentUser, currentUserCollection, viewingUserCollection, updateCurrentUser, updateShowcase, users } = userContext!;
   const isCurrentUser = currentUser?.id === user.id;
   const collection = isCurrentUser ? currentUserCollection : viewingUserCollection;
   
@@ -654,14 +683,14 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
   }, [user.activeTitleId, user.earnedTitles]);
 
   const userRankInfo = useMemo(() => {
-    const { currentUserRank, currentUserScore, leaderboard } = getTop100Leaderboard(user, collection);
+    const { currentUserRank, currentUserScore, leaderboard } = getTop100Leaderboard(user, collection, users);
     const entry = leaderboard.find(l => l.id === user.id || l.name.toLowerCase() === (user.name || '').toLowerCase());
     return {
       rank: entry ? entry.rank : currentUserRank,
       score: entry ? entry.score : currentUserScore,
       tier: entry ? entry.tier : 'Master Collector',
     };
-  }, [user, collection]);
+  }, [user.id, user.vinyls?.length, user.prestigeCount, collection.length, users]);
 
   const handlePinVinyl = (vinylId: string) => {
       if (!isCurrentUser) return;
@@ -826,11 +855,11 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
         >
             My Playlist
         </button>}
-         <button 
-            onClick={() => setActiveTab('vinyls')}
-            className={`flex-shrink-0 px-4 py-3 font-semibold text-sm transition-colors ${activeTab === 'vinyls' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+        <button 
+            onClick={() => setActiveTab('favorites')}
+            className={`flex-shrink-0 px-4 py-3 font-semibold text-sm transition-colors ${activeTab === 'favorites' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
         >
-            Golden Vinyls
+            ⭐ Favorite Artists
         </button>
         {isCurrentUser && <button 
             onClick={() => setActiveTab('boosts')}
@@ -952,16 +981,6 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
 
       {activeTab === 'showcase' && (
         <div className="space-y-6">
-          {/* Vinyl Shelf */}
-          <VinylShelfSection
-            user={user}
-            isCurrentUser={isCurrentUser}
-            vinyls={user.vinyls || []}
-            pinnedVinylIds={user.showcase?.proudestVinylIds || []}
-            onPlayVinyl={(v) => setPlayingVinyl(v)}
-            onOpenCosmetics={() => setIsManageVinylModalOpen(true)}
-          />
-
           {/* Dynamic 15-Capacity Mythic Showcase Grid */}
           <CanvasShowcaseView 
             user={user} 
@@ -994,15 +1013,7 @@ export const ProfileView: React.FC<{ user: User }> = ({ user }) => {
         </div>
       )}
       {activeTab === 'playlist' && isCurrentUser && <PlaylistEditorView />}
-      {activeTab === 'vinyls' && (
-           <VinylShelfView
-               vinyls={user.vinyls || []}
-               onPlay={(vinyl) => setPlayingVinyl(vinyl)}
-               onPin={(albumId) => handlePinVinyl(albumId)}
-               proudestVinylIds={user.showcase?.proudestVinylIds || []}
-               canPin={isCurrentUser}
-           />
-      )}
+      {activeTab === 'favorites' && <FavoritesView />}
       
       {activeTab === 'boosts' && isCurrentUser && <BoostsView />}
       {activeTab === 'stats' && <CollectionStats user={user} collection={collection} />}

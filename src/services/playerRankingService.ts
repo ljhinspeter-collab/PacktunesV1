@@ -133,6 +133,26 @@ export function getTop100Leaderboard(
         userMap.set(currentUser.id, currentUser);
     }
 
+    // Benchmark community collectors for realistic ranking calculation if registered accounts are few
+    if (userMap.size < 8) {
+        const benchmarks: any[] = [
+            { id: 'bm_1', name: 'AetherMogul', pfpUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', collectionSize: 380, mythicsCount: 9, jailbrokensCount: 1 },
+            { id: 'bm_2', name: 'SonicCollector', pfpUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', collectionSize: 280, mythicsCount: 6, jailbrokensCount: 0 },
+            { id: 'bm_3', name: 'BeatMaster99', pfpUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', collectionSize: 190, mythicsCount: 4, jailbrokensCount: 0 },
+            { id: 'bm_4', name: 'VinylVanguard', pfpUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150', collectionSize: 140, mythicsCount: 2, jailbrokensCount: 0 },
+            { id: 'bm_5', name: 'RhythmRider', pfpUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150', collectionSize: 95, mythicsCount: 1, jailbrokensCount: 0 },
+            { id: 'bm_6', name: 'MelodySeeker', pfpUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150', collectionSize: 60, mythicsCount: 1, jailbrokensCount: 0 },
+            { id: 'bm_7', name: 'GrooveHunter', pfpUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150', collectionSize: 35, mythicsCount: 0, jailbrokensCount: 0 },
+            { id: 'bm_8', name: 'SoundSurfer', pfpUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', collectionSize: 15, mythicsCount: 0, jailbrokensCount: 0 },
+        ];
+
+        benchmarks.forEach(bm => {
+            if (!userMap.has(bm.id!)) {
+                userMap.set(bm.id!, bm as User);
+            }
+        });
+    }
+
     const realUsers = Array.from(userMap.values());
     if (realUsers.length === 0 && currentUser) {
         realUsers.push(currentUser);

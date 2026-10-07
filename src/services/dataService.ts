@@ -36,10 +36,11 @@ class DataService {
     }
     
     async createUserProfile(userId: string, email: string, name: string, bio: string): Promise<User> {
+        const cleanName = (name && !name.includes('@')) ? name : 'Music Collector';
         const newUser: User = {
             id: userId,
             email: email.toLowerCase(),
-            name,
+            name: cleanName,
             bio,
             pfpUrl: `https://i.pravatar.cc/150?u=${userId}`,
             favoriteArtists: [],
@@ -65,13 +66,22 @@ class DataService {
             earnedTitles: [],
             activeTitleId: null,
         };
-        await setDoc(doc(collections.users, userId), newUser);
+        await setDoc(doc(collections.users, userId), newUser, { merge: true });
         return newUser;
     }
 
     // @ts-ignore
     async updateUser(userId: string, data: any): Promise<void> {
-        await updateDoc(doc(collections.users, userId), data);
+        if (!userId || !data) return;
+        try {
+            if (data && typeof data.name === 'string' && data.name.includes('@')) {
+                delete data.name;
+            }
+            const plainData = JSON.parse(JSON.stringify(data));
+            await setDoc(doc(collections.users, userId), plainData, { merge: true });
+        } catch (err) {
+            console.warn("Failed to update user in Firestore:", err);
+        }
     }
 
     async isUsernameTaken(name: string, excludeUserId?: string): Promise<boolean> {

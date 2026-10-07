@@ -4,13 +4,27 @@ import { MusicNoteIcon, StarIcon, DiamondIcon } from './icons';
 import type { CollectedSong } from '../types';
 
 export const AccountSettingsModal: React.FC<{ onClose: () => void; }> = ({ onClose }) => {
-    const { signOut, resyncGoldenVinyls, resyncBadgesAndMastery, currentUser, updateCurrentUser, updateShowcase, currentUserCollection } = useContext(UserContext)!;
+    const { signOut, resyncGoldenVinyls, resyncBadgesAndMastery, restoreAccountProgress, currentUser, updateCurrentUser, updateShowcase, currentUserCollection } = useContext(UserContext)!;
     const [isSyncing, setIsSyncing] = useState(false);
     const [isSyncingBadges, setIsSyncingBadges] = useState(false);
+    const [newName, setNewName] = useState(currentUser?.name || 'vize');
+    const [newPfpUrl, setNewPfpUrl] = useState(currentUser?.pfpUrl || 'https://i.pravatar.cc/150');
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
 
     const [songDetailStyle, setSongDetailStyle] = useState<'default' | 'soundmap'>(() => {
         return (localStorage.getItem('packtunes_song_detail_style') as 'soundmap' | 'default') || 'default';
     });
+
+    const handleSaveProfile = async () => {
+        if (!newName.trim()) return;
+        setIsSavingProfile(true);
+        await updateCurrentUser({ 
+            name: newName.trim(),
+            pfpUrl: newPfpUrl.trim() || 'https://i.pravatar.cc/150'
+        });
+        setIsSavingProfile(false);
+        alert("Profile saved successfully!");
+    };
 
     const handleSync = async () => {
         setIsSyncing(true);
@@ -69,6 +83,30 @@ export const AccountSettingsModal: React.FC<{ onClose: () => void; }> = ({ onClo
                 
                 <div className="space-y-6">
 
+                     {/* Profile Settings */}
+                     <div>
+                         <h4 className="text-lg font-semibold mb-3 text-gray-300">Profile Username</h4>
+                         <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700 space-y-3">
+                             <div>
+                                 <label className="text-xs font-bold text-gray-300 mb-1 block">Username:</label>
+                                 <input 
+                                     type="text" 
+                                     value={newName} 
+                                     onChange={e => setNewName(e.target.value)} 
+                                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 mb-3"
+                                     placeholder="Enter username (e.g. vize)"
+                                 />
+                                 <button 
+                                     onClick={handleSaveProfile} 
+                                     disabled={isSavingProfile}
+                                     className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm font-semibold transition-colors disabled:bg-gray-500"
+                                 >
+                                     {isSavingProfile ? 'Saving...' : 'Save Username'}
+                                 </button>
+                             </div>
+                         </div>
+                     </div>
+
                      {/* Profile Showcase & Theme Song Manager */}
                      <div>
                          <h4 className="text-lg font-semibold mb-3 text-gray-300">Profile Showcase & Pins</h4>
@@ -125,25 +163,6 @@ export const AccountSettingsModal: React.FC<{ onClose: () => void; }> = ({ onClo
                                         </option>
                                     ))}
                                 </select>
-                             </div>
-                          </div>
-                     </div>
-
-                     {/* Data Management */}
-                     <div>
-                         <h4 className="text-lg font-semibold mb-3 text-gray-300">Data Management</h4>
-                          <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700 space-y-4">
-                             <div>
-                                <p className="text-sm text-gray-400 mb-3">If you think a Golden Vinyl is missing after completing a shiny album, you can manually resync your collection.</p>
-                                <button onClick={handleSync} disabled={isSyncing} className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md font-semibold transition-colors disabled:bg-gray-500">
-                                    {isSyncing ? 'Syncing...' : 'Resync Golden Vinyls'}
-                                </button>
-                             </div>
-                             <div>
-                                <p className="text-sm text-gray-400 mb-3">If your badges or artist images appear incorrect (especially after an update), run this to repair your data.</p>
-                                <button onClick={handleBadgeSync} disabled={isSyncingBadges} className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md font-semibold transition-colors disabled:bg-gray-500">
-                                    {isSyncingBadges ? 'Resyncing...' : 'Resync Badges & Mastery'}
-                                </button>
                              </div>
                           </div>
                      </div>

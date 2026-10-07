@@ -159,7 +159,7 @@ export const CanvasShowcaseCard: React.FC<CanvasCardProps> = ({
             </span>
           ) : isMythic && isShiny ? (
             <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-gradient-to-r from-yellow-400 via-amber-300 to-cyan-300 text-black shadow-md flex items-center gap-0.5">
-              <span>💎 Shiny Mythic #{String(serialNumber || 1).padStart(3, '0')}</span>
+              <span>💎 #{String(serialNumber || 1).padStart(3, '0')}</span>
             </span>
           ) : isMythic ? (
             <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-yellow-400 text-black shadow-sm">
@@ -229,7 +229,7 @@ const StaticSlotCard: React.FC<{
               </span>
             ) : isMythic && isShiny ? (
               <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-gradient-to-r from-yellow-400 to-cyan-300 text-black shadow-sm">
-                💎 Shiny Mythic #{String(serialNumber || 1).padStart(3, '0')}
+                💎 #{String(serialNumber || 1).padStart(3, '0')}
               </span>
             ) : isMythic ? (
               <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-yellow-400 text-black">
@@ -387,7 +387,7 @@ const SongPickerDrawer: React.FC<{
                             </span>
                           ) : isShiny ? (
                             <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-gradient-to-r from-yellow-400 via-amber-300 to-cyan-300 text-black shadow-md flex items-center gap-0.5">
-                              💎 Shiny Mythic #{String(item.serialNumber || 1).padStart(3, '0')}
+                              💎 #{String(item.serialNumber || 1).padStart(3, '0')}
                             </span>
                           ) : (
                             <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-yellow-400 text-black shadow-sm">

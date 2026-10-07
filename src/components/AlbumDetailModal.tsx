@@ -17,44 +17,62 @@ const TrackItem: React.FC<{
     showShiny: boolean;
 }> = ({ track, isCollected, isShinyCollected, showShiny }) => {
     
-    let statusIcon: React.ReactNode = null;
+    let statusBadge: React.ReactNode = null;
     let textColor = 'text-gray-500';
     let titleStyle = 'font-normal';
 
     if (showShiny) {
         if (isShinyCollected) {
-            statusIcon = <SparklesIcon className="w-5 h-5 text-cyan-400" />;
+            statusBadge = (
+                <span className="flex items-center gap-1 bg-cyan-500/20 text-cyan-300 text-xs px-2 py-0.5 rounded-full font-bold border border-cyan-500/40">
+                    <SparklesIcon className="w-3.5 h-3.5 text-cyan-300" /> Shiny Owned
+                </span>
+            );
             textColor = 'text-white';
-            titleStyle = 'font-semibold';
+            titleStyle = 'font-bold';
         } else if (isCollected) {
-            // User has the normal version, but not the shiny
-            statusIcon = <CheckCircleIcon className="w-5 h-5 text-gray-500" />;
-            textColor = 'text-gray-400';
+            statusBadge = (
+                <span className="flex items-center gap-1 bg-gray-800 text-gray-400 text-xs px-2 py-0.5 rounded-full border border-gray-700">
+                    <CheckCircleIcon className="w-3.5 h-3.5 text-gray-400" /> Standard Only
+                </span>
+            );
+            textColor = 'text-gray-300';
         } else {
-            // User doesn't have the song at all
-            statusIcon = <XCircleIcon className="w-5 h-5 text-gray-700" />;
+            statusBadge = (
+                <span className="flex items-center gap-1 bg-gray-900 text-gray-600 text-xs px-2 py-0.5 rounded-full border border-gray-800">
+                    <XCircleIcon className="w-3.5 h-3.5 text-gray-600" /> Missing Shiny
+                </span>
+            );
         }
     } else { // Normal mode
         if (isCollected) {
-            statusIcon = <CheckCircleIcon className="w-5 h-5 text-green-400" />;
+            statusBadge = (
+                <span className="flex items-center gap-1 bg-green-500/20 text-green-300 text-xs px-2 py-0.5 rounded-full font-bold border border-green-500/40">
+                    <CheckCircleIcon className="w-3.5 h-3.5 text-green-400" /> Owned
+                </span>
+            );
             textColor = 'text-white';
-            titleStyle = 'font-semibold';
+            titleStyle = 'font-bold';
         } else {
-            statusIcon = <XCircleIcon className="w-5 h-5 text-gray-700" />;
+            statusBadge = (
+                <span className="flex items-center gap-1 bg-gray-900 text-gray-600 text-xs px-2 py-0.5 rounded-full border border-gray-800">
+                    <XCircleIcon className="w-3.5 h-3.5 text-gray-600" /> Missing
+                </span>
+            );
         }
     }
 
     return (
-        <li className={`flex items-center justify-between p-2 rounded-md ${isCollected ? 'bg-gray-800/50' : ''}`}>
-            <span className={`${textColor} ${titleStyle} truncate`}>{track.title}</span>
-            <div className="flex-shrink-0">{statusIcon}</div>
+        <li className={`flex items-center justify-between p-2.5 rounded-lg border transition-all ${isShinyCollected ? 'bg-cyan-950/30 border-cyan-500/30' : isCollected ? 'bg-gray-800/50 border-gray-700/50' : 'bg-gray-900/30 border-gray-800/40'}`}>
+            <span className={`${textColor} ${titleStyle} text-sm truncate mr-2`}>{track.title}</span>
+            <div className="flex-shrink-0">{statusBadge}</div>
         </li>
     );
 };
 
 
 export const AlbumDetailModal: React.FC<AlbumDetailModalProps> = ({ album, tracks, artist, onClose }) => {
-    const [showShiny, setShowShiny] = useState(false);
+    const [showShiny, setShowShiny] = useState(true);
     const { currentUserCollection } = useContext(UserContext)!;
 
     const collectionStats = useMemo(() => {

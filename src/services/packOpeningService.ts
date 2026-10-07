@@ -256,8 +256,10 @@ const assignSongAttributes = (
     }
   }
 
-  // Holographic Shiny card drop
-  if (options?.forceShiny) {
+  // Holographic Shiny card drop (Jailbrokens are strictly 1 of 1 and never shiny)
+  if (collectedSong.song.rarity === Rarity.Jailbroken) {
+    collectedSong.song.isShiny = false;
+  } else if (options?.forceShiny) {
     collectedSong.song.isShiny = true;
   } else {
     const shinyChance = 0.03 * (options?.shinyMultiplier || 1);
@@ -281,10 +283,10 @@ export const generateAndOpenPack = async (
   const mythicSlotIndex = isDailyMythicPack ? 0 : -1;
   const guaranteedShinySlotIndex = isShinyRush ? 0 : -1;
 
-  // 25% chance that Daily Mythic's guaranteed Mythic picks from user's favorite artists
-  const favMythicTriggered = isDailyMythicPack && favoriteArtists.length > 0 && Math.random() < 0.25;
+  // 5% chance that Daily Mythic's guaranteed Mythic picks from user's favorite artists
+  const favMythicTriggered = isDailyMythicPack && favoriteArtists.length > 0 && Math.random() < 0.05;
 
-  // Standard 5% favorite boost for standard packs
+  // 5% favorite boost when opening packs if favorite artists are set
   const favoriteBoostTriggered = !isDailyMythicPack && !isShinyRush && favoriteArtists.length > 0 && Math.random() < 0.05;
   const favoriteBoostSlotIndex = favoriteBoostTriggered ? Math.floor(Math.random() * 6) : -1;
 

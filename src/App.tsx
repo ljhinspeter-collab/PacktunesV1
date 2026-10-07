@@ -1,4 +1,4 @@
-import React, { useState, useContext, useMemo, useEffect } from 'react';
+import React, { useState, useContext, useMemo } from 'react';
 import { VinylIcon, Cog6ToothIcon } from './components/icons';
 import { BottomNavBar, Tab } from './components/BottomNavBar';
 import { ProfileView } from './views/CollectionView';
@@ -97,7 +97,7 @@ const App: React.FC = () => {
                  <div className="text-left">
                       <p className="font-semibold text-white">{currentUser.name}</p>
                   </div>
-                  <button onClick={() => setIsAccountModalOpen(true)} className="p-2 text-gray-400 hover:text-white transition-colors">
+                  <button onClick={() => setIsAccountModalOpen(true)} className="p-2 text-gray-400 hover:text-white transition-colors" title="Settings">
                     <Cog6ToothIcon className="w-6 h-6" />
                   </button>
               </div>

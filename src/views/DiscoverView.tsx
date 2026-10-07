@@ -3,24 +3,46 @@ import type { Artist, Album as AlbumType, Song } from '../types';
 import { searchArtists, getArtistAlbums, getAlbumTracks } from '../services/musicService';
 import { SearchBar } from '../components/SearchBar';
 import { UserContext } from '../contexts/UserContext';
-import { RectangleStackIcon, StarIcon } from '../components/icons';
+import { SparklesIcon, StarIcon } from '../components/icons';
 import { AlbumDetailModal } from '../components/AlbumDetailModal';
 
-const AlbumCard: React.FC<{ album: AlbumType, collectedCount: number, totalCount: number }> = ({ album, collectedCount, totalCount }) => {
-    const isComplete = totalCount > 0 && collectedCount === totalCount;
+const AlbumCard: React.FC<{ album: AlbumType, shinyCount: number, totalCount: number }> = ({ album, shinyCount, totalCount }) => {
+    const isComplete = totalCount > 0 && shinyCount === totalCount;
+    const progressPercent = totalCount > 0 ? Math.min(100, Math.round((shinyCount / totalCount) * 100)) : 0;
+
     return (
-        <div className={`relative w-full aspect-square rounded-lg overflow-hidden group border-2 ${isComplete ? 'border-yellow-400' : 'border-transparent'}`}>
-            <img src={album.coverUrl} alt={album.title} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-3">
-                <h4 className="font-bold text-white truncate group-hover:whitespace-normal">{album.title}</h4>
-                {totalCount > 0 && (
-                     <div className="flex items-center gap-1.5 text-xs mt-1">
-                        <RectangleStackIcon className={`w-4 h-4 ${isComplete ? 'text-yellow-400' : 'text-gray-300'}`} />
-                        <span className={`font-semibold ${isComplete ? 'text-yellow-400' : 'text-gray-300'}`}>{collectedCount} / {totalCount}</span>
+        <div className={`relative w-full rounded-xl overflow-hidden group bg-gray-900 border-2 transition-all flex flex-col ${isComplete ? 'border-yellow-400 shadow-lg shadow-yellow-500/20' : 'border-gray-800 hover:border-cyan-500/50'}`}>
+            <div className="relative aspect-square w-full">
+                <img src={album.coverUrl} alt={album.title} className="w-full h-full object-cover" />
+                {isComplete && (
+                    <div className="absolute top-2 right-2 bg-yellow-500 text-black px-2 py-0.5 rounded-full text-[10px] font-black shadow flex items-center gap-1 z-10">
+                        <span>📀</span> Golden Vinyl
                     </div>
                 )}
             </div>
-            {isComplete && <div className="absolute top-2 right-2 text-yellow-300" title="Album Complete!"><StarIcon className="w-6 h-6" /></div>}
+            
+            <div className="p-3 flex flex-col justify-between flex-1 space-y-2">
+                <h4 className="font-bold text-xs sm:text-sm text-white truncate group-hover:text-cyan-300 transition-colors" title={album.title}>{album.title}</h4>
+                
+                {/* Shiny Progress Bar */}
+                <div className="space-y-1 pt-1 border-t border-gray-800">
+                    <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-cyan-300 font-semibold flex items-center gap-1">
+                            <SparklesIcon className="w-3 h-3 text-cyan-400" /> Shiny Progress
+                        </span>
+                        <span className={`font-bold ${isComplete ? 'text-yellow-400' : 'text-gray-300'}`}>
+                            {shinyCount} / {totalCount}
+                        </span>
+                    </div>
+
+                    <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden border border-gray-700">
+                        <div 
+                            className={`h-full transition-all duration-500 ${isComplete ? 'bg-gradient-to-r from-yellow-400 to-amber-500' : 'bg-gradient-to-r from-cyan-500 to-blue-500'}`}
+                            style={{ width: `${progressPercent}%` }}
+                        />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
@@ -38,7 +60,17 @@ export const DiscoverView: React.FC = () => {
     const [selectedAlbum, setSelectedAlbum] = useState<AlbumType | null>(null);
 
     const { currentUserCollection } = useContext(UserContext)!;
-    const userCollectionIds = useMemo(() => new Set(currentUserCollection.map(c => c.song.id)), [currentUserCollection]);
+
+    const userShinySet = useMemo(() => {
+        const shinySet = new Set<string>();
+        currentUserCollection.forEach(c => {
+            if (c.song && c.song.isShiny) {
+                if (c.song.id) shinySet.add(String(c.song.id));
+                if (c.song.title) shinySet.add(c.song.title.toLowerCase().trim());
+            }
+        });
+        return shinySet;
+    }, [currentUserCollection]);
 
     const handleSearch = useCallback(async () => {
         if (query.trim().length < 2) {
@@ -61,7 +93,7 @@ export const DiscoverView: React.FC = () => {
     useEffect(() => {
         const debounceTimer = setTimeout(() => {
             handleSearch();
-        }, 500); // 500ms debounce
+        }, 500);
 
         return () => clearTimeout(debounceTimer);
     }, [query, handleSearch]);
@@ -74,7 +106,6 @@ export const DiscoverView: React.FC = () => {
         try {
             const albums = await getArtistAlbums(artist.id);
 
-            // Fetch tracks for all albums, passing full album and artist objects for efficiency
             const trackPromises = albums.map(album => getAlbumTracks(album, artist));
             const tracksData = await Promise.all(trackPromises);
             
@@ -83,7 +114,6 @@ export const DiscoverView: React.FC = () => {
                 tracksMap[album.id] = tracksData[index];
             });
 
-            // Set states together after all data is fetched to prevent UI inconsistency
             setArtistAlbums(albums);
             setAlbumTracks(tracksMap);
 
@@ -93,11 +123,13 @@ export const DiscoverView: React.FC = () => {
         setIsAlbumLoading(false);
     };
 
-    const getCollectionStatsForAlbum = (albumId: string) => {
+    const getShinyCollectionStatsForAlbum = (albumId: string) => {
         const tracks = albumTracks[albumId] || [];
         const totalCount = tracks.length;
-        const collectedCount = tracks.filter(track => userCollectionIds.has(track.id)).length;
-        return { collectedCount, totalCount };
+        const shinyCount = tracks.filter(track => 
+            userShinySet.has(String(track.id)) || userShinySet.has(track.title.toLowerCase().trim())
+        ).length;
+        return { shinyCount, totalCount };
     };
 
     return (
@@ -144,10 +176,10 @@ export const DiscoverView: React.FC = () => {
                     ) : artistAlbums.length > 0 ? (
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                            {artistAlbums.map(album => {
-                                const { collectedCount, totalCount } = getCollectionStatsForAlbum(album.id);
+                                const { shinyCount, totalCount } = getShinyCollectionStatsForAlbum(album.id);
                                 return (
                                     <button key={album.id} onClick={() => setSelectedAlbum(album)} className="w-full text-left transform transition-transform hover:scale-105">
-                                        <AlbumCard album={album} collectedCount={collectedCount} totalCount={totalCount} />
+                                        <AlbumCard album={album} shinyCount={shinyCount} totalCount={totalCount} />
                                     </button>
                                 );
                            })}

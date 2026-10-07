@@ -190,12 +190,12 @@ const SongPreview: React.FC<{
     if (isSpecialCard) {
         const getSoundmapGlowColor = () => {
             if (isShinyMythic) return 'border-amber-400/90 shadow-[0_0_60px_rgba(251,191,36,0.6)]';
-            if (isJailbroken) return 'border-cyan-400/90 shadow-[0_0_60px_rgba(34,211,238,0.6)]';
+            if (isJailbroken) return 'border-red-500/90 shadow-[0_0_65px_rgba(239,68,68,0.9),_inset_0_0_35px_rgba(239,68,68,0.4)] ring-2 ring-red-500/60 animate-pulse';
             return 'border-amber-400/90 shadow-[0_0_60px_rgba(251,191,36,0.5)]';
         };
 
         const serialTag = isJailbroken
-            ? '#001'
+            ? '1 of 1'
             : isMythic
             ? `#${String(serialNumber || 1).padStart(3, '0')}`
             : null;
@@ -338,7 +338,11 @@ const SongPreview: React.FC<{
 
                     {/* Top Right Serial # Badge (Only for Mythic / Jailbroken) */}
                     {serialTag && (
-                        <div className={`bg-white/90 backdrop-blur-sm text-black font-black rounded-full shadow-xl border border-gray-200 tracking-wider flex-shrink-0 ml-1 ${
+                        <div className={`font-black rounded-full shadow-xl tracking-wider flex-shrink-0 ml-1 ${
+                            isJailbroken
+                                ? 'bg-black/90 text-red-400 border border-red-500/80 shadow-[0_0_15px_rgba(239,68,68,0.7)] backdrop-blur-md animate-pulse font-mono'
+                                : 'bg-white/90 backdrop-blur-sm text-black border border-gray-200'
+                        } ${
                             isWideMode ? 'text-[9px] px-2 py-0.5' : 'text-xs px-2.5 sm:px-3 py-1'
                         }`}>
                             {serialTag}
@@ -375,7 +379,7 @@ const SongPreview: React.FC<{
                             isShinyMythic
                                 ? 'bg-gradient-to-r from-amber-400/90 via-yellow-300/90 to-amber-500/90 text-black border border-yellow-200/80'
                                 : isJailbroken
-                                ? 'bg-black text-cyan-300 border border-cyan-400'
+                                ? 'bg-black/90 text-red-400 border border-red-500/80 shadow-[0_0_12px_rgba(239,68,68,0.6)] animate-pulse'
                                 : 'bg-gradient-to-r from-yellow-400/90 via-amber-300/90 to-yellow-500/90 text-black border border-yellow-200/80'
                         }`}>
                             <DiamondIcon className={isWideMode ? 'w-2.5 h-2.5' : 'w-3 h-3'} />
@@ -722,12 +726,31 @@ export const SongPreviewModal: React.FC<{
             return; 
         }
 
-        const audio = new Audio(livePreviewUrl);
+        let currentSource = livePreviewUrl;
+        let triedProxy = false;
+        let audio: HTMLAudioElement | null = new Audio(currentSource);
         audioRef.current = audio;
         audio.volume = 0.85;
 
+        const handleError = () => {
+            if (!triedProxy && currentSource.startsWith('http')) {
+                triedProxy = true;
+                const proxyUrl = `/api/deezer/audio-proxy?url=${encodeURIComponent(currentSource)}`;
+                currentSource = proxyUrl;
+                if (audio) {
+                    audio.src = proxyUrl;
+                    audio.load();
+                    if (isPlaying) {
+                        audio.play().catch(() => setIsPlaying(false));
+                    }
+                }
+            } else {
+                setIsPlaying(false);
+            }
+        };
+
         const handleTimeUpdate = () => {
-            if (!audio.duration) return;
+            if (!audio || !audio.duration) return;
             setCurrentTime(audio.currentTime);
             setDuration(audio.duration);
             setProgress((audio.currentTime / audio.duration) * 100);
@@ -740,17 +763,21 @@ export const SongPreviewModal: React.FC<{
             setCurrentTime(0);
         };
         
+        audio.addEventListener('error', handleError);
         audio.addEventListener('timeupdate', handleTimeUpdate);
         audio.addEventListener('ended', handleEnded);
         audio.addEventListener('play', handlePlay);
         audio.addEventListener('pause', handlePause);
         
         return () => {
-            audio.pause();
-            audio.removeEventListener('timeupdate', handleTimeUpdate);
-            audio.removeEventListener('ended', handleEnded);
-            audio.removeEventListener('play', handlePlay);
-            audio.removeEventListener('pause', handlePause);
+            if (audio) {
+                audio.pause();
+                audio.removeEventListener('error', handleError);
+                audio.removeEventListener('timeupdate', handleTimeUpdate);
+                audio.removeEventListener('ended', handleEnded);
+                audio.removeEventListener('play', handlePlay);
+                audio.removeEventListener('pause', handlePause);
+            }
             audioRef.current = null;
         };
     }, [livePreviewUrl]);
@@ -765,7 +792,13 @@ export const SongPreviewModal: React.FC<{
             audio.play().then(() => {
                 setIsPlaying(true);
             }).catch(() => {
-                setIsPlaying(false);
+                if (audio.src && !audio.src.includes('/api/deezer/audio-proxy') && livePreviewUrl) {
+                    audio.src = `/api/deezer/audio-proxy?url=${encodeURIComponent(livePreviewUrl)}`;
+                    audio.load();
+                    audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+                } else {
+                    setIsPlaying(false);
+                }
             });
         }
     };
